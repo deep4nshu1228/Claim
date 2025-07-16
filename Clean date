@@ -1,0 +1,38 @@
+WITH converted_data AS (
+  SELECT
+    *,
+    -- Handle warranty_taken_date (YYYYMMDD) with edge cases
+    CASE 
+      WHEN warranty_taken_date = 0 THEN NULL
+      WHEN LENGTH(warranty_taken_date::VARCHAR) < 8 THEN 
+          TRY_TO_DATE(LPAD(warranty_taken_date::VARCHAR, 8, '0'), 'YYYYMMDD')
+      ELSE TRY_TO_DATE(warranty_taken_date::VARCHAR, 'YYYYMMDD')
+    END AS warranty_date,
+    
+    -- Handle sell_date (YYYYMM) with edge cases
+    CASE 
+      WHEN sell_date = 0 THEN NULL
+      WHEN LENGTH(sell_date::VARCHAR) < 6 THEN 
+          TRY_TO_DATE(LPAD(sell_date::VARCHAR, 6, '0') || '01', 'YYYYMMDD')
+      ELSE TRY_TO_DATE(sell_date::VARCHAR || '01', 'YYYYMMDD')
+    END AS sale_date
+  FROM warranty_data
+),
+
+clean_data AS (
+  SELECT
+    *,
+    -- Calculate product age only for valid dates
+    DATEDIFF('month', sale_date, warranty_date) AS product_age_months,
+    DATE_TRUNC('month', warranty_date) AS claim_month
+  FROM converted_data
+  -- Filter out invalid date combinations
+  WHERE 
+    warranty_date IS NOT NULL
+    AND sale_date IS NOT NULL
+    AND warranty_date >= sale_date  -- Claims can't happen before sale
+    AND product_age_months BETWEEN 0 AND 120  -- 10-year max warranty
+)
+
+-- Main EDA queries use clean_data CTE now
+SELECT * FROM clean_data;
