@@ -1,0 +1,140 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+# Convert dates (ensure this matches your Snowflake conversion)
+df['warranty_date'] = pd.to_datetime(df['warranty_taken_date'], errors='coerce')
+df['sale_date'] = pd.to_datetime(df['sell_date'], errors='coerce') 
+
+# Filter valid dates
+df = df.dropna(subset=['warranty_date', 'sale_date'])
+df = df[df['warranty_date'] >= df['sale_date']]
+
+# Create time features
+df['claim_month'] = df['warranty_date'].dt.to_period('M')
+df['sale_month'] = df['sale_date'].dt.to_period('M')
+df['product_age'] = (df['warranty_date'] - df['sale_date']).dt.days // 30  # Months
+
+
+
+
+
+
+# Monthly aggregate
+monthly = df.groupby('claim_month')['price'].agg(['sum', 'count']).reset_index()
+monthly['claim_month'] = monthly['claim_month'].dt.to_timestamp()
+
+plt.figure(figsize=(14, 7))
+plt.subplot(211)
+sns.lineplot(x='claim_month', y='sum', data=monthly)
+plt.title('Total Warranty Cost by Month')
+plt.ylabel('Total Cost ($)')
+plt.grid(True)
+
+plt.subplot(212)
+sns.lineplot(x='claim_month', y='count', data=monthly, color='orange')
+plt.title('Number of Claims by Month')
+plt.ylabel('Claim Count')
+plt.grid(True)
+plt.tight_layout()
+
+
+
+
+
+
+
+# Prepare time series
+ts = monthly.set_index('claim_month')['sum']
+decomposition = seasonal_decompose(ts, model='additive', period=12)
+
+plt.figure(figsize=(14, 10))
+decomposition.plot()
+plt.suptitle('Seasonal Decomposition of Warranty Costs', y=1.02)
+
+
+
+
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8))
+plot_acf(ts, lags=36, ax=ax1)
+plot_pacf(ts, lags=36, ax=ax2, method='ywm')
+plt.suptitle('Autocorrelation Analysis', y=1.02)
+plt.tight_layout()
+
+
+
+
+
+# Time from sale to claim
+plt.figure(figsize=(14, 6))
+plt.subplot(121)
+sns.histplot(df['product_age'], bins=36, kde=True)
+plt.title('Distribution of Claim Timing (Months After Sale)')
+plt.xlabel('Months Since Sale')
+
+plt.subplot(122)
+sns.lineplot(
+    x=df.groupby('sale_month')['product_age'].mean().index.astype('datetime64[ns]'),
+    y=df.groupby('sale_month')['product_age'].mean().values
+)
+plt.title('Average Claim Lag Over Time')
+plt.ylabel('Months from Sale to Claim')
+plt.tight_layout()
+
+
+
+# Extract year and month
+monthly['year'] = monthly['claim_month'].dt.year
+monthly['month'] = monthly['claim_month'].dt.month
+
+plt.figure(figsize=(14, 6))
+sns.lineplot(
+    x='month', 
+    y='sum', 
+    hue='year', 
+    data=monthly[monthly['year'] > monthly['year'].max() - 3],  # Last 3 years
+    palette='viridis',
+    marker='o'
+)
+plt.title('Monthly Warranty Costs: Year-over-Year Comparison')
+plt.ylabel('Total Cost ($)')
+plt.grid(True)
+
+
+
+
+
+
+plt.figure(figsize=(14, 6))
+for year in df['warranty_date'].dt.year.unique():
+    year_data = df[df['warranty_date'].dt.year == year]
+    cumulative = year_data.groupby(year_data['warranty_date'].dt.month)['price'].sum().cumsum()
+    sns.lineplot(x=cumulative.index, y=cumulative.values, label=year)
+    
+plt.title('Cumulative Warranty Costs by Year')
+plt.xlabel('Month of Year')
+plt.ylabel('Cumulative Cost ($)')
+plt.legend(title='Year')
+plt.grid(True)
+
+
+
+temporal_metrics = pd.DataFrame({
+    'Total Cost': monthly['sum'],
+    'Claim Count': monthly['count'],
+    'Avg Cost per Claim': monthly['sum'] / monthly['count'],
+    'YoY Growth (%)': monthly['sum'].pct_change(periods=12) * 100,
+    'MoM Growth (%)': monthly['sum'].pct_change() * 100
+}, index=monthly['claim_month'])
+
+# Display last 12 months
+print("Last 12 Months Temporal Metrics:")
+display(temporal_metrics.tail(12).style.format({
+    'Total Cost': '${:,.0f}',
+    'Avg Cost per Claim': '${:,.0f}',
+    'YoY Growth (%)': '{:.1f}%',
+    'MoM Growth (%)': '{:.1f}%'
+}).background_gradient(subset=['YoY Growth (%)', 'MoM Growth (%)'], cmap='RdYlGn'))
