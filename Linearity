@@ -61,3 +61,8 @@ def get_rows_by_year(df, year): # Make sure 'year' column exists if 'year' not i
 degree = 2 coefficients = np.polyfit(x, y, degree) print("Coefficients:", coefficients)
 polynomial = np.poly1d(coefficients)# Generate smooth x values for plotting the polynomial curve x_fit = np.linspace(min(x), max(x), 100) y_fit = polynomial(x_fit) plt.scatter(x, y, color='red', label='Data points') plt.plot(x_fit, y_fit, color='blue', label=f'Polynomial Fit (degree={degree})') plt.legend() plt.xlabel('x') plt.ylabel('y') plt.title('Polynomial Fit Example') plt.show()
 # Predicted y values at original x points y_pred = polynomial(x) # Calculate R² manually ss_res = np.sum((y - y_pred) ** 2) ss_tot = np.sum((y - np.mean(y)) ** 2) r2 = 1 - (ss_res / ss_tot) print("R² score:", r2)
+
+
+
+
+import pandas as pd import numpy as np from scipy.stats import chi2_contingency def cramers_v(cat1: pd.Series, cat2: pd.Series) -> float: tab = pd.crosstab(cat1, cat2) chi2, _, _, _ = chi2_contingency(tab, correction=False) n = tab.values.sum() phi2 = chi2 / n r, k = tab.shape # bias-corrected Cramér’s V phi2_corr = max(0, phi2 - (k-1)*(r-1)/(n-1)) r_corr = r - (r-1)**2/(n-1) k_corr = k - (k-1)**2/(n-1) return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1))) v = cramers_v(df['plant'], df['zone']) print(f"Cramér’s V = {v:.3f}")
