@@ -49,7 +49,9 @@ y = y[mask]
 
 
 
-
+def get_data_by_year(df, years, date_col='warranty_taken_date', keep_year_col=False):
+    # ... (same as above) ...
+    return result if keep_year_col else result.drop(columns=['year'])
 
 
 
