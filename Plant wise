@@ -1,0 +1,55 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from statsmodels.tsa.seasonal import seasonal_decompose
+
+# Aggregate data by plant and month
+plant_monthly = df.groupby(['plant', 'claim_month']).agg(
+    total_cost=('price', 'sum'),
+    claim_count=('price', 'count')
+).reset_index()
+plant_monthly['claim_month'] = plant_monthly['claim_month'].dt.to_timestamp()
+
+# Add time features
+plant_monthly['year'] = plant_monthly['claim_month'].dt.year
+plant_monthly['month'] = plant_monthly['claim_month'].dt.month
+
+
+
+plt.figure(figsize=(16, 8))
+sns.lineplot(
+    x='claim_month', 
+    y='total_cost', 
+    hue='plant',
+    data=plant_monthly,
+    estimator=None,  # Show all plants
+    alpha=0.7
+)
+plt.title('Warranty Cost Trends by Plant')
+plt.ylabel('Total Monthly Cost ($)')
+plt.grid(True)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+
+
+# Create faceted grid by plant
+g = sns.FacetGrid(
+    plant_monthly, 
+    col='plant', 
+    col_wrap=4,  # 4 plants per row
+    height=4, 
+    aspect=1.5,
+    sharey=False  # Different scales per plant
+)
+g.map(sns.lineplot, 'claim_month', 'total_cost')
+g.set_titles("{col_name}")
+g.set_axis_labels("Date", "Cost ($)")
+g.fig.suptitle('Monthly Warranty Costs by Plant', y=1.03)
+plt.tight_layout()
+
+
+
+# Prepare subplots
+fig, axes = plt.subplots(len(df['plant'].unique()), 1, figsize=(14, 20))
+
+for i, plant in enumerate(df['plant'].unique()
