@@ -54,6 +54,8 @@ def get_data_by_year(df, years, date_col='warranty_taken_date', keep_year_col=Fa
     return result if keep_year_col else result.drop(columns=['year'])
 
 
+def get_rows_by_year(df, year): # Make sure 'year' column exists if 'year' not in df.columns: df['year'] = df['date'].dt.year # Filter rows where year matches return df[df['year'] == year]
+
 
 
 degree = 2 coefficients = np.polyfit(x, y, degree) print("Coefficients:", coefficients)
