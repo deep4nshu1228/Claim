@@ -23,3 +23,37 @@ print(f"Linear Fit Metrics:")
 print(f"R-squared: {r_value**2:.4f}")
 print(f"Slope: {slope:.4f} (Price change per week)")
 print(f"P-value: {p_value:.4e}")
+
+
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+
+# Sample data - replace with your actual dataframe
+# Let's assume X = product_age_months, y = price
+X = df[['product_age_months']].values  # Independent variable
+y = df['price'].values                 # Dependent variable
+
+# Remove missing values
+mask = ~np.isnan(X) & ~np.isnan(y)
+X = X[mask].reshape(-1, 1)
+y = y[mask]
+
+
+
+
+
+
+
+
+
+
+degree = 2 coefficients = np.polyfit(x, y, degree) print("Coefficients:", coefficients)
+polynomial = np.poly1d(coefficients)# Generate smooth x values for plotting the polynomial curve x_fit = np.linspace(min(x), max(x), 100) y_fit = polynomial(x_fit) plt.scatter(x, y, color='red', label='Data points') plt.plot(x_fit, y_fit, color='blue', label=f'Polynomial Fit (degree={degree})') plt.legend() plt.xlabel('x') plt.ylabel('y') plt.title('Polynomial Fit Example') plt.show()
+# Predicted y values at original x points y_pred = polynomial(x) # Calculate R² manually ss_res = np.sum((y - y_pred) ** 2) ss_tot = np.sum((y - np.mean(y)) ** 2) r2 = 1 - (ss_res / ss_tot) print("R² score:", r2)
