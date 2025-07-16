@@ -1,0 +1,25 @@
+# Weekly average price trend
+weekly_avg = df.resample('W', on='warranty_date')['price'].mean()
+
+plt.figure(figsize=(14, 6))
+sns.regplot(
+    x=np.arange(len(weekly_avg)), 
+    y=weekly_avg.values,
+    scatter_kws={'alpha':0.5},
+    line_kws={'color':'red', 'linewidth':2}
+)
+plt.title('Weekly Average Price Trend with Linear Fit')
+plt.xlabel('Week Index')
+plt.ylabel('Average Price ($)')
+plt.grid(True)
+
+# Calculate linearity metrics
+from scipy.stats import linregress
+slope, intercept, r_value, p_value, std_err = linregress(
+    np.arange(len(weekly_avg)), 
+    weekly_avg.values
+)
+print(f"Linear Fit Metrics:")
+print(f"R-squared: {r_value**2:.4f}")
+print(f"Slope: {slope:.4f} (Price change per week)")
+print(f"P-value: {p_value:.4e}")
