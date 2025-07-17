@@ -135,4 +135,16 @@ df["plant"] = (
 
 df["sin_month"] = np.sin(2 * np.pi * df["month"] / 12)
 df["cos_month"] = np.cos(2 * np.pi * df["month"] / 12)
- 
+
+
+
+for plant, group in df_test.groupby('plant'):
+    plt.figure(figsize=(8,4))
+    plt.plot(group.index, group['price'], marker='o', linestyle='-', label=f'Plant: {plant}')
+    plt.xlabel('Index')
+    plt.ylabel('Price')
+    plt.title(f'Price by Index for Plant: {plant}')
+    plt.legend()
+    plt.show()
+
+
