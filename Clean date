@@ -157,4 +157,17 @@ plt.ylabel('Price')
 plt.title('Actual vs Predicted Prices')
 plt.legend()
 plt.show()
+
+
+
+
+
+
+
+df['price_lag1']   = df['price'].shift(1)           # 1-period lag
+df['pct_change_1'] = df['price'].pct_change(1)      # 1-period % change
+df['roll_mean_3']  = df['price'].rolling(3).mean()  # 3-period rolling mean
+df['roll_std_3']   = df['price'].rolling(3).std()   # 3-period rolling std-dev
+df['ema_6']        = df['price'].ewm(span=6, adjust=False).mean()  # 6-period exponential moving average
+ 
  
