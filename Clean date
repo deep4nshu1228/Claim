@@ -148,3 +148,13 @@ for plant, group in df_test.groupby('plant'):
     plt.show()
 
 
+
+plt.figure(figsize=(10,6))
+plt.plot(df_test.index, df_test['price_real'], label='Actual', color='blue', marker='o')
+plt.plot(df_test.index, df_test['price_predicted'], label='Predicted', color='red', marker='x')
+plt.xlabel('Index')
+plt.ylabel('Price')
+plt.title('Actual vs Predicted Prices')
+plt.legend()
+plt.show()
+ 
