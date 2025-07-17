@@ -81,4 +81,45 @@ plt.gca().invert_yaxis()
 plt.tight_layout()
 plt.show()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if PLANT_COL in df.columns:
+    plant_test = df.loc[X_test.index, PLANT_COL]
+    summary = (
+        pd.DataFrame({
+            "plant": plant_test.values,
+            "price_real": y_test.values,
+            "price_pred": y_pred,
+        })
+        .groupby("plant")[["price_real", "price_pred"]]
+        .sum()
+        .assign(diff=lambda d: d.price_pred - d.price_real)
+    )
+    print("\nPlant-wise totals (test set):")
+    print(summary)
+else:
+    print(f"Column '{PLANT_COL}' not found – skipping plant-wise totals.")
+ 
+
  
