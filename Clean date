@@ -169,5 +169,16 @@ df['pct_change_1'] = df['price'].pct_change(1)      # 1-period % change
 df['roll_mean_3']  = df['price'].rolling(3).mean()  # 3-period rolling mean
 df['roll_std_3']   = df['price'].rolling(3).std()   # 3-period rolling std-dev
 df['ema_6']        = df['price'].ewm(span=6, adjust=False).mean()  # 6-period exponential moving average
+
+
+
+
+
+
+angle = np.arctan2(df["sin_month"], df["cos_month"])   # (-π, π]
+
+month_idx = (angle / (2 * np.pi) * 12)      # 0–12 (may be negative)
+month_idx = (month_idx + 12) % 12           # wrap negatives → positive
+df["month_recovered"] = month_idx.round().astype(int) + 1  # 1–12
  
  
