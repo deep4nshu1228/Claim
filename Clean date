@@ -36,3 +36,17 @@ clean_data AS (
 
 -- Main EDA queries use clean_data CTE now
 SELECT * FROM clean_data;
+
+
+
+
+import pandas as pd
+from datetime import datetime, timedelta
+
+today = pd.Timestamp.today()
+
+five_years_ago = today - pd.DateOffset(years=5)
+
+df_last_5_years = df[df['date'] >= five_years_ago]
+
+ 
