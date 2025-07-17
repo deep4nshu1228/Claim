@@ -122,4 +122,13 @@ else:
     print(f"Column '{PLANT_COL}' not found – skipping plant-wise totals.")
  
 
+ plant_cols = [c for c in df.columns if c.startswith("plant_")]
+
+# identify which one-hot column is 1 for each row
+df["plant"] = (
+    df[plant_cols]
+    .idxmax(axis=1)         # returns column name, e.g. 'plant_B'
+    .str.replace("plant_", "", regex=False)   # strip prefix → 'B'
+)
+
  
