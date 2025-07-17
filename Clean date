@@ -131,4 +131,8 @@ df["plant"] = (
     .str.replace("plant_", "", regex=False)   # strip prefix → 'B'
 )
 
+
+
+df["sin_month"] = np.sin(2 * np.pi * df["month"] / 12)
+df["cos_month"] = np.cos(2 * np.pi * df["month"] / 12)
  
