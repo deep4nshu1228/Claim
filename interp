@@ -1,0 +1,13 @@
+importance_dict = model.get_booster().get_score(importance_type='weight')
+feature_importance_df = pd.DataFrame(list(importance_dict.items()), columns=['feature', 'weight'])
+feature_importance_df['weight_pct'] = 100 * feature_importance_df['weight'] / feature_importance_df['weight'].sum()
+feature_importance_df = feature_importance_df.sort_values(by='weight_pct', ascending=False)
+
+print(feature_importance_df)
+
+# Optional: plot
+sns.barplot(x='weight_pct', y='feature', data=feature_importance_df)
+plt.xlabel('Feature Importance by Weight (%)')
+plt.title('XGBoost Feature Importance')
+plt.tight_layout()
+plt.show()
