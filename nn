@@ -20,3 +20,7 @@ knn = Pipeline([
     ("pre", pre),
     ("reg", KNeighborsRegressor(n_neighbors=5, weights="distance"))
 ])
+
+
+svr = SVR(kernel="rbf", C=10, gamma="scale", epsilon=0.1)
+knn = KNeighborsRegressor(n_neighbors=5, weights="distance")
