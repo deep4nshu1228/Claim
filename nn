@@ -45,4 +45,10 @@ plt.ylabel('Predicted')
 plt.title('Predicted vs Real by Plant')
 plt.legend()
 plt.show()
+
+
+
+x = np.array([1, 2, 3, 4, 5 ,6, 7, 8])
+y_poly = np.polyval(coeffs, x)
+ s
  
