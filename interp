@@ -19,3 +19,31 @@ df['rolling_avg'] = (
       .apply(lambda x: x.rolling(window=3, min_periods=1).mean())
       .reset_index(level=0, drop=True)
 )
+
+
+df['rolling_avg_3'] = (
+    df.groupby('plant')['price']
+      .apply(lambda x: x.rolling(window=3, min_periods=1).mean())
+      .reset_index(level=0, drop=True)
+)
+
+# pct_change within plant
+df['pct_change'] = (
+    df.groupby('plant')['price']
+      .apply(lambda x: x.pct_change())
+      .reset_index(level=0, drop=True)
+)
+
+# lag1 (previous row value in same plant)
+df['lag1'] = (
+    df.groupby('plant')['price']
+      .shift(1)
+)
+
+# EMA with span=6 within plant
+df['ema6'] = (
+    df.groupby('plant')['price']
+      .apply(lambda x: x.ewm(span=6, adjust=False).mean())
+      .reset_index(level=0, drop=True)
+)
+ 
