@@ -1,0 +1,8 @@
+from sklearn.model_selection import RepeatedKFold, cross_val_score
+cv = RepeatedKFold(n_splits=5, n_repeats=3, random_state=42)
+
+def cv_mae(estimator, X, y):
+    mae = -cross_val_score(estimator, X, y,
+                           cv=cv, scoring="neg_mean_absolute_error")
+    return mae.mean(), mae.std()
+print(cv_mae(model, X_train, y_train))
