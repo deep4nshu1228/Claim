@@ -11,3 +11,11 @@ plt.xlabel('Feature Importance by Weight (%)')
 plt.title('XGBoost Feature Importance')
 plt.tight_layout()
 plt.show()
+
+
+
+df['rolling_avg'] = (
+    df.groupby('plant')['price']
+      .apply(lambda x: x.rolling(window=3, min_periods=1).mean())
+      .reset_index(level=0, drop=True)
+)
