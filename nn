@@ -24,3 +24,25 @@ knn = Pipeline([
 
 svr = SVR(kernel="rbf", C=10, gamma="scale", epsilon=0.1)
 knn = KNeighborsRegressor(n_neighbors=5, weights="distance")
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+
+plants = df['plant'].unique()
+
+plt.figure(figsize=(8,6))
+
+for plant in plants:
+    plant_df = df[df['plant'] == plant]
+    plt.scatter(plant_df['real'], plant_df['predicted'], label=f'Plant {plant}')
+
+plt.xlabel('Real')
+plt.ylabel('Predicted')
+plt.title('Predicted vs Real by Plant')
+plt.legend()
+plt.show()
+ 
