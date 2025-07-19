@@ -43,3 +43,101 @@ arima_pred_in = model.predict()          # in-sample fit
 resid = y_train - arima_pred_in          # new TARGET
 Xg_train = make_feature_matrix(y_train)  # lagged features etc.
 xgb.fit(Xg_train, resid)
+
+
+
+
+
+
+
+
+
+
+
+# Residual-boosting hybrid:  ARIMA  ➜  residuals  ➜  XGBoost
+# ------------------------------------------------------------------
+# 1.  PACKAGES
+import pandas as pd
+import numpy as np
+
+from statsmodels.tsa.arima.model import ARIMA
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_absolute_error
+
+# ------------------------------------------------------------------
+# 2.  INPUT DATA  ---------------------------------------------------
+# df must contain a time index (or a 'date' column) and a     ─┐
+# column called 'price' (the series we forecast).               │
+# add any exogenous variables you want XGBoost to use.          │
+# --------------------------------------------------------------┘
+# df = pd.read_csv("your_file.csv", parse_dates=['date']).set_index('date')
+
+# ------------------------------------------------------------------
+# 3.  TRAIN / TEST CUTOFF (keep chronological order) ------------
+split_point = int(len(df) * 0.8)
+train_df, test_df = df.iloc[:split_point], df.iloc[split_point:]
+
+y_train = train_df['price']
+y_test  = test_df['price']
+
+# ------------------------------------------------------------------
+# 4.  ARIMA ON TRAIN SET  ----------------------------------------
+arima_order = (3,1,2)                     # choose p,d,q as appropriate
+arima = ARIMA(y_train, order=arima_order).fit()
+
+yhat_arima_in  = arima.predict(start=y_train.index[0], end=y_train.index[-1])
+residual_train = y_train - yhat_arima_in    # ← *** NEW TARGET ***
+
+# ------------------------------------------------------------------
+# 5.  BUILD XGBOOST FEATURE MATRIX -------------------------------
+def make_features(df, max_lag=12):
+    out = df.copy()
+    # simple lags
+    for l in range(1, max_lag + 1):
+        out[f'lag_{l}'] = out['price'].shift(l)
+    # calendar dummies (example)
+    out['month'] = out.index.month
+    out['weekday'] = out.index.weekday
+    return out.drop(columns=['price'])
+
+X_train = make_features(train_df).iloc[max_lag:]       # drop NaNs from lagging
+residual_train = residual_train.iloc[max_lag:]         # align with X_train
+
+# same transformation for test
+X_test = make_features(test_df)
+# ensure lags that reach into the train set are present
+X_test.iloc[:max_lag] = X_test.iloc[:max_lag].fillna(method='bfill')
+
+# ------------------------------------------------------------------
+# 6.  FIT XGBOOST ON RESIDUALS ------------------------------------
+xgb = XGBRegressor(
+    n_estimators=500,
+    learning_rate=0.05,
+    max_depth=4,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective='reg:squarederror',
+    random_state=42
+)
+xgb.fit(X_train, residual_train)
+
+# ------------------------------------------------------------------
+# 7.  FORECAST ----------------------------------------------------
+# 7a. ARIMA forecast for test horizon (same length as y_test)
+yhat_arima_out = arima.forecast(steps=len(y_test))
+
+# 7b. XGBoost residual forecast
+resid_pred = xgb.predict(X_test)
+
+# 7c. Combine
+y_pred_final = yhat_arima_out.values + resid_pred
+
+# ------------------------------------------------------------------
+# 8.  EVALUATION ---------------------------------------------------
+mae = mean_absolute_error(y_test, y_pred_final)
+print(f"Hybrid MAE: {mae:.3f}")
+
+# optional: compare to plain ARIMA
+mae_arima = mean_absolute_error(y_test, yhat_arima_out)
+print(f"ARIMA-only MAE: {mae_arima:.3f}")
+ 
