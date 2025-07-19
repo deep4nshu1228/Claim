@@ -31,3 +31,15 @@ rf = RandomForestRegressor(
         max_features=0.7,
         random_state=42)
 print("RF", cv_mae(rf, X, y))
+
+
+
+
+# Fit ARIMA first
+from statsmodels.tsa.arima.model import ARIMA
+model = ARIMA(y_train, order=(p,d,q)).fit()
+arima_pred_in = model.predict()          # in-sample fit
+
+resid = y_train - arima_pred_in          # new TARGET
+Xg_train = make_feature_matrix(y_train)  # lagged features etc.
+xgb.fit(Xg_train, resid)
