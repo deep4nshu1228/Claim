@@ -1,0 +1,136 @@
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
+
+
+# Load data
+df = pd.read_csv("data.csv")
+
+# Convert date column
+df['warranty_claim_date'] = pd.to_datetime(df['warranty_claim_date'])
+
+# Aggregate cost by month
+df['year_month'] = df['warranty_claim_date'].dt.to_period('M')
+monthly_cost = df.groupby('year_month')['cost'].sum().reset_index()
+monthly_cost['year_month'] = monthly_cost['year_month'].astype(str)
+
+# Sort by date
+monthly_cost = monthly_cost.sort_values('year_month')
+
+
+
+
+# Set date as index and scale cost
+monthly_cost.index = pd.to_datetime(monthly_cost['year_month'])
+scaler = MinMaxScaler()
+cost_scaled = scaler.fit_transform(monthly_cost['cost'].values.reshape(-1,1))
+
+# Create sequences
+def create_sequences(data, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i+seq_length])
+        y.append(data[i+seq_length])
+    return np.array(X), np.array(y)
+
+window_size = 12  # Use previous 12 months to predict next
+X, y = create_sequences(cost_scaled, window_size)
+
+# Convert to torch tensors
+X = torch.tensor(X, dtype=torch.float32)
+y = torch.tensor(y, dtype=torch.float32)
+
+
+
+split = int(0.8 * len(X))
+X_train, X_test = X[:split], X[split:]
+y_train, y_test = y[:split], y[split:]
+
+class SequenceDataset(Dataset):
+    def __init__(self, X, y):
+        self.X, self.y = X, y
+    def __len__(self):
+        return len(self.X)
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+batch_size = 8
+train_loader = DataLoader(SequenceDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(SequenceDataset(X_test, y_test), batch_size=1)
+
+
+
+
+class CostLSTM(nn.Module):
+    def __init__(self, input_size=1, hidden_size=64, num_layers=1):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        out = self.fc(out[:, -1, :])
+        return out
+
+model = CostLSTM()
+criterion = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+
+
+epochs = 50
+for epoch in range(epochs):
+    model.train()
+    for xb, yb in train_loader:
+        optimizer.zero_grad()
+        output = model(xb)
+        loss = criterion(output, yb)
+        loss.backward()
+        optimizer.step()
+    if (epoch+1) % 10 == 0:
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
+
+
+
+
+
+model.eval()
+preds = []
+actual = []
+with torch.no_grad():
+    for xb, yb in test_loader:
+        pred = model(xb)
+        preds.append(pred.item())
+        actual.append(yb.item())
+preds_inv = scaler.inverse_transform(np.array(preds).reshape(-1,1))
+actual_inv = scaler.inverse_transform(np.array(actual).reshape(-1,1))
+
+plt.figure(figsize=(12,5))
+plt.plot(actual_inv, label="Actual")
+plt.plot(preds_inv, label="Predicted")
+plt.legend()
+plt.xlabel("Time")
+plt.ylabel("Monthly Cost")
+plt.title("LSTM Cost Forecast (PyTorch)")
+plt.show()
+
+
+
+
+
+model.eval()
+window = torch.tensor(cost_scaled[-window_size:], dtype=torch.float32).unsqueeze(0)  # shape (1, seq_len, 1)
+future_preds = []
+n_future = 6  # forecast 6 months
+
+with torch.no_grad():
+    for _ in range(n_future):
+        pred = model(window)
+        future_preds.append(pred.item())
+        next_input = torch.cat([window.squeeze(0)[1:], pred.unsqueeze(0)], dim=0)
+        window = next_input.unsqueeze(0)
+future_preds_inv = scaler.inverse_transform(np.array(future_preds).reshape(-1,1))
+print("Forecasted costs for next 6 months:", future_preds_inv.flatten())
