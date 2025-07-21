@@ -1,0 +1,158 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+
+
+# Load data
+df = pd.read_csv("data.csv")
+
+# Convert warranty_claim_date to datetime
+df['warranty_claim_date'] = pd.to_datetime(df['warranty_claim_date'])
+
+# Group (aggregate) cost by month
+df['year_month'] = df['warranty_claim_date'].dt.to_period('M')
+monthly_cost = df.groupby('year_month')['cost'].sum().reset_index()
+monthly_cost['year_month'] = monthly_cost['year_month'].astype(str)
+
+# Sort by date
+monthly_cost = monthly_cost.sort_values('year_month')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Set time index
+monthly_cost.index = pd.to_datetime(monthly_cost['year_month'])
+
+# Scale data
+scaler = MinMaxScaler()
+cost_scaled = scaler.fit_transform(monthly_cost['cost'].values.reshape(-1, 1))
+
+# Create sequences
+def create_sequences(data, window):
+    X, y = [], []
+    for i in range(len(data) - window):
+        X.append(data[i:i+window])
+        y.append(data[i+window])
+    return np.array(X), np.array(y)
+
+window_size = 12  # using past 12 months
+X, y = create_sequences(cost_scaled, window_size)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+split = int(len(X) * 0.8)
+X_train, X_test = X[:split], X[split:]
+y_train, y_test = y[:split], y[split:]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+model = Sequential([
+    LSTM(64, activation='relu', input_shape=(window_size, 1)),
+    Dense(1)
+])
+
+model.compile(optimizer='adam', loss='mse')
+history = model.fit(X_train, y_train, epochs=50, batch_size=8, validation_split=0.1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+y_pred = model.predict(X_test)
+y_pred_inv = scaler.inverse_transform(y_pred)
+y_test_inv = scaler.inverse_transform(y_test)
+
+
+
+
+
+last_window = cost_scaled[-window_size:]
+future_preds = []
+num_forecast = 6  # predict next 6 months
+
+for _ in range(num_forecast):
+    pred = model.predict(last_window.reshape(1, window_size, 1))
+    future_preds.append(pred[0,0])
+    last_window = np.append(last_window, pred)[-window_size:]
+
+# Inverse transform for readable prediction
+future_preds = scaler.inverse_transform(np.array(future_preds).reshape(-1, 1))
+print("Next 6 months cost forecast:", future_preds.flatten())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
