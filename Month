@@ -1,0 +1,46 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ensure warranty date is datetime
+df['warranty_date'] = pd.to_datetime(df['warranty_date'])
+
+# Extract month and year
+df['month'] = df['warranty_date'].dt.month
+df['year'] = df['warranty_date'].dt.year
+df['month_name'] = df['warranty_date'].dt.strftime('%b')  # for better legend labels
+
+# Optional: aggregate monthly cost per plant-year-month
+monthly_df = df.groupby(['plant', 'year', 'month', 'month_name'])['warranty_cost'].sum().reset_index()
+
+# Unique plants
+plants = monthly_df['plant'].unique()
+
+# Setup plot
+num_plants = len(plants)
+fig, axes = plt.subplots(nrows=num_plants, ncols=1, figsize=(10, 5 * num_plants), sharex=True)
+
+if num_plants == 1:
+    axes = [axes]
+
+# Use consistent color palette
+palette = sns.color_palette('tab10', 12)  # 12 months
+
+for i, plant in enumerate(plants):
+    ax = axes[i]
+    data = monthly_df[monthly_df['plant'] == plant]
+    
+    # Plot each month separately
+    for month in range(1, 13):
+        month_data = data[data['month'] == month]
+        ax.scatter(month_data['year'], month_data['warranty_cost'],
+                   label=month_data['month_name'].iloc[0], 
+                   color=palette[month-1])
+    
+    ax.set_title(f'Warranty Cost Trend by Month – Plant {plant}')
+    ax.set_ylabel('Warranty Cost')
+    ax.legend(title='Month', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+plt.xlabel('Year')
+plt.tight_layout()
+plt.show()
