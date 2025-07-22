@@ -1,0 +1,73 @@
+import pandas as pd
+
+# Define start and end year range
+start_year = 2018
+end_year = 2025
+
+# Generate financial year labels like "2018-2019", "2019-2020", ...
+financial_years = [f"{y}-{y+1}" for y in range(start_year, end_year)]
+
+plants = df['plant'].unique()
+
+
+full_index = pd.MultiIndex.from_product(
+    [plants, financial_years],
+    names=['plant', 'financial_year']
+)
+
+# Group and sum original data
+df['financial_year'] = df['date'].apply(
+    lambda x: f"{x.year}-{x.year+1}" if x.month >= 4 else f"{x.year-1}-{x.year}"
+)
+grouped = df.groupby(['plant', 'financial_year'])['warranty_cost'].sum()
+
+# Reindex to the full grid, fill missing with 0
+grouped_full = grouped.reindex(full_index, fill_value=0).reset_index()
+
+
+
+grouped_full['start_year'] = grouped_full['financial_year'].str[:4].astype(int)
+grouped_full = grouped_full.sort_values(['plant', 'start_year'])
+
+
+
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(
+    data=grouped_full,
+    x='financial_year',
+    y='warranty_cost',
+    hue='plant',
+    marker='o'
+)
+plt.title("Plant-wise Warranty Cost Trend by Financial Year (Complete)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+
+grouped_full = grouped.reindex(full_index, fill_value=0).reset_index()
+
+
+grouped_full['start_year'] = grouped_full['financial_year'].str[:4].astype(int)
+grouped_full = grouped_full.sort_values(['plant', 'start_year'])
+
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(
+    data=grouped_full,
+    x='financial_year',
+    y='warranty_cost',
+    hue='plant',
+    marker='o'
+)
+plt.title("Plant-wise Warranty Cost Trend by Financial Year (with Gaps)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
