@@ -2,45 +2,42 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Ensure warranty date is datetime
+# Ensure datetime and columns
 df['warranty_date'] = pd.to_datetime(df['warranty_date'])
-
-# Extract month and year
-df['month'] = df['warranty_date'].dt.month
 df['year'] = df['warranty_date'].dt.year
-df['month_name'] = df['warranty_date'].dt.strftime('%b')  # for better legend labels
+df['month'] = df['warranty_date'].dt.month
+df['month_name'] = df['warranty_date'].dt.strftime('%b')
 
-# Optional: aggregate monthly cost per plant-year-month
-monthly_df = df.groupby(['plant', 'year', 'month', 'month_name'])['warranty_cost'].sum().reset_index()
+# Aggregate warranty cost per plant, year, and month
+grouped = df.groupby(['plant', 'year', 'month', 'month_name'])['warranty_cost'].sum().reset_index()
+
+# Sort month names properly
+month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+grouped['month_name'] = pd.Categorical(grouped['month_name'], categories=month_order, ordered=True)
 
 # Unique plants
-plants = monthly_df['plant'].unique()
+plants = grouped['plant'].unique()
 
-# Setup plot
-num_plants = len(plants)
-fig, axes = plt.subplots(nrows=num_plants, ncols=1, figsize=(10, 5 * num_plants), sharex=True)
-
-if num_plants == 1:
-    axes = [axes]
-
-# Use consistent color palette
-palette = sns.color_palette('tab10', 12)  # 12 months
-
-for i, plant in enumerate(plants):
-    ax = axes[i]
-    data = monthly_df[monthly_df['plant'] == plant]
+# Plot setup
+for plant in plants:
+    plt.figure(figsize=(12, 6))
+    plant_data = grouped[grouped['plant'] == plant]
     
-    # Plot each month separately
-    for month in range(1, 13):
-        month_data = data[data['month'] == month]
-        ax.scatter(month_data['year'], month_data['warranty_cost'],
-                   label=month_data['month_name'].iloc[0], 
-                   color=palette[month-1])
+    # Plot each month group as a cluster on x-axis
+    for i, month in enumerate(month_order):
+        month_data = plant_data[plant_data['month_name'] == month]
+        plt.scatter(
+            x=[month] * len(month_data),  # position all April points at "Apr", etc.
+            y=month_data['warranty_cost'],
+            label=month,
+            color=sns.color_palette("tab10")[i % 10],  # rotate color palette if > 10
+            alpha=0.7
+        )
     
-    ax.set_title(f'Warranty Cost Trend by Month – Plant {plant}')
-    ax.set_ylabel('Warranty Cost')
-    ax.legend(title='Month', bbox_to_anchor=(1.05, 1), loc='upper left')
-
-plt.xlabel('Year')
-plt.tight_layout()
-plt.show()
+    plt.title(f'Month-wise Warranty Cost Comparison – Plant {plant}')
+    plt.ylabel('Warranty Cost')
+    plt.xlabel('Month')
+    plt.legend(title='Month', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
