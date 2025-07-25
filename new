@@ -1,0 +1,37 @@
+def mape_objective(preds, dtrain):
+    """
+    Custom objective function for Mean Absolute Percentage Error (MAPE)
+    """
+    labels = dtrain.get_label()
+    labels = np.where(labels == 0, 1e-8, labels)
+
+    grad = np.sign(preds - labels) / labels
+    hess = np.ones(len(preds)) * 1e-6
+
+    return grad, hess
+
+def mape_eval(preds, dtrain):
+    """
+    Custom evaluation metric for MAPE
+    """
+    labels = dtrain.get_label()
+    labels = np.where(labels == 0, 1e-8, labels)
+
+    mape = np.mean(np.abs((preds - labels) / labels)) * 100
+    return 'mape', mape
+
+# Modified model without validation
+model = xgb.XGBRegressor(
+    objective=mape_objective,
+    n_estimators=800,
+    learning_rate=0.03,
+    max_depth=3,
+    min_child_weight=0,        # Changed from 10 to 0
+    subsample=0.8,
+    colsample_bytree=0.8,
+    gamma=0.1,
+    tree_method="hist",
+    reg_lambda=1.0,
+)
+
+ 
