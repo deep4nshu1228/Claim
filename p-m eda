@@ -1,0 +1,62 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from itertools import product
+
+# -------------------------------
+# 1.  Load data  (replace the CSV/xlsx path)
+# -------------------------------
+# df = pd.read_excel('monthly_costs.xlsx')            # example loader
+# columns assumed: plant, model, month, year, cost
+# ---------------------------------------------------
+
+# Safety: keep only the needed columns and drop rows with no date pieces
+df = df[['plant', 'model', 'year', 'month', 'cost']].dropna(subset=['year', 'month'])
+
+# Build a real datetime column (day=1 for every month)
+df['date'] = pd.to_datetime(df[['year', 'month']].assign(day=1))
+
+# Sort for correct plotting order
+df = df.sort_values(['plant', 'model', 'date']).reset_index(drop=True)
+
+# ---------------------------------------------------
+# 2.  Scatter plot per Plant–Model combination
+# ---------------------------------------------------
+plants  = df['plant'].unique()
+models  = df['model'].unique()
+
+for plant, model in product(plants, models):
+    sub = df[(df['plant'] == plant) & (df['model'] == model)]
+    if sub.empty:
+        continue                       # skip pairs that don’t exist
+
+    plt.figure(figsize=(10, 4))
+    plt.scatter(sub['date'], sub['cost'], s=40, color='#1f77b4')
+    plt.title(f'Cost over time  |  Plant: {plant}  |  Model: {model}')
+    plt.xlabel('Month')
+    plt.ylabel('Cost')
+    plt.grid(alpha=0.3)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+# ---------------------------------------------------
+# 3.  Check for missing months in each series
+# ---------------------------------------------------
+print('\nMissing-month report (min→max span for that pair):\n')
+
+for plant, model in product(plants, models):
+    sub = df[(df['plant'] == plant) & (df['model'] == model)]
+    if sub.empty:
+        continue
+
+    full_span = pd.date_range(sub['date'].min(),
+                              sub['date'].max(),
+                              freq='MS')          # MS = Month-Start
+    missing   = full_span.difference(sub['date'])
+
+    if missing.empty:
+        print(f'✓  {plant} | {model}:   no gaps')
+    else:
+        # convert to YYYY-MM for concise printing
+        gaps = ', '.join(missing.strftime('%Y-%m'))
+        print(f'✗  {plant} | {model}:   missing → {gaps}')
