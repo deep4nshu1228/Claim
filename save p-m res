@@ -1,0 +1,102 @@
+"""
+Save a result DataFrame to Excel so that
+
+• each plant gets its own sheet, and  
+• inside every sheet each bike-model appears in a separate table
+  (title row + the data, then a blank line before the next table).
+
+Columns expected in df:
+  plant | model | month | year | realval | predval | absdiff | pct
+"""
+
+import pandas as pd
+from pathlib import Path
+
+
+def export_plant_model_tables(
+    df: pd.DataFrame,
+    out_file: str | Path = "plant_model_results.xlsx",
+    blank_rows: int = 1,
+) -> None:
+    """
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The result data.
+    out_file : str or Path
+        Destination Excel file.
+    blank_rows : int
+        Blank lines between two consecutive model tables.
+    """
+
+    # Ensure a sensible sort order for readability inside Excel
+    df = (
+        df.copy()
+        .sort_values(["plant", "model", "year", "month"])
+        .reset_index(drop=True)
+    )
+
+    # Create the writer
+    with pd.ExcelWriter(out_file, engine="xlsxwriter") as writer:
+        wb = writer.book
+
+        # Simple header / title formats (optional)
+        header_fmt = wb.add_format({"bold": True, "bg_color": "#D9E1F2"})
+        title_fmt = wb.add_format({"bold": True, "font_color": "#003366"})
+
+        for plant, df_plant in df.groupby("plant", sort=False):
+            # Excel sheet names must be ≤31 chars and unique
+            sheet_name = str(plant)[:31]
+            sheet = wb.add_worksheet(sheet_name)
+            writer.sheets[sheet_name] = sheet
+
+            row_ptr = 0  # keeps track of the next free row
+
+            for model, df_model in df_plant.groupby("model", sort=False):
+                # --- 1. title row --------------------------------------------------
+                sheet.write(row_ptr, 0, f"Model: {model}", title_fmt)
+                row_ptr += 1
+
+                # --- 2. write the actual table ------------------------------------
+                df_model.to_excel(
+                    writer,
+                    sheet_name=sheet_name,
+                    startrow=row_ptr,
+                    startcol=0,
+                    index=False,
+                    header=True,
+                )
+
+                # re-apply header style (overwrite the first line of the just-written block)
+                for col_num, col_name in enumerate(df_model.columns):
+                    sheet.write(row_ptr, col_num, col_name, header_fmt)
+
+                # advance pointer: table height + blank spacer
+                row_ptr += len(df_model) + 1 + blank_rows
+
+            # (optional) autofit column widths
+            for col_num, col in enumerate(df_plant.columns):
+                max_len = max(
+                    df_plant[col].astype(str).map(len).max(), len(col)
+                ) + 2
+                sheet.set_column(col_num, col_num, max_len)
+
+
+# -------------------- Example usage --------------------
+
+if __name__ == "__main__":
+    # dummy frame for illustration
+    df_example = pd.DataFrame(
+        {
+            "plant": ["P1", "P1", "P1", "P2", "P2"],
+            "model": ["A", "B", "A", "A", "C"],
+            "month": [1, 1, 2, 1, 2],
+            "year": [2025] * 5,
+            "realval": [100, 200, 150, 80, 90],
+            "predval": [110, 190, 145, 85, 95],
+            "absdiff": [10, 10, 5, 5, 5],
+            "pct": [0.1, 0.05, 0.033, 0.062, 0.055],
+        }
+    )
+
+    export_plant_model_tables(df_example, "plant_model_results.xlsx")
