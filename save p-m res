@@ -100,3 +100,175 @@ if __name__ == "__main__":
     )
 
     export_plant_model_tables(df_example, "plant_model_results.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
+
+##################################################################################
+
+
+
+
+
+import pandas as pd
+from pathlib import Path
+
+
+def export_with_charts(
+    df: pd.DataFrame,
+    out_file: str | Path = "plant_model_results.xlsx",
+    blank_rows: int = 1,
+) -> None:
+    """
+    • One sheet per plant
+    • Inside each sheet:   Model-title  +  data-table  +  Real vs Pred line-chart
+    • Skips empty tables
+    • Adds thousands-comma format to real / pred / absdiff, percent format to pct
+    """
+    # ------------------------------------------------------------------ set-up
+    df = (
+        df.copy()
+        .sort_values(["plant", "model", "year", "month"])
+        .reset_index(drop=True)
+    )
+
+    result_cols = ["realval", "predval", "absdiff", "pct"]
+
+    with pd.ExcelWriter(out_file, engine="xlsxwriter") as writer:
+        wb = writer.book
+
+        # ---------- Excel formats
+        header_fmt   = wb.add_format({"bold": True, "bg_color": "#D9E1F2"})
+        title_fmt    = wb.add_format({"bold": True, "font_color": "#003366"})
+        comma_fmt    = wb.add_format({"num_format": "#,##0"})          # 12,345
+        pct_fmt      = wb.add_format({"num_format": "0.00%"})          # 5.23%
+
+        for plant, df_plant in df.groupby("plant", sort=False):
+
+            df_plant = df_plant.dropna(how="all", subset=result_cols)
+            if df_plant.empty:
+                continue  # nothing for this plant
+
+            sheet_name = str(plant)[:31]
+            sheet      = wb.add_worksheet(sheet_name)
+            writer.sheets[sheet_name] = sheet
+            row_ptr = 0
+
+            for model, df_model in df_plant.groupby("model", sort=False):
+
+                df_model = df_model.dropna(how="all", subset=result_cols)
+                if df_model.empty:
+                    continue
+
+                # ── 1. title row ────────────────────────────────────────────────
+                sheet.write(row_ptr, 0, f"Model: {model}", title_fmt)
+                row_ptr += 1
+
+                # ── 2. write table ─────────────────────────────────────────────
+                df_model.to_excel(
+                    writer,
+                    sheet_name=sheet_name,
+                    startrow=row_ptr,
+                    startcol=0,
+                    index=False,
+                    header=True,
+                )
+
+                # header style
+                for col_idx, col_name in enumerate(df_model.columns):
+                    sheet.write(row_ptr, col_idx, col_name, header_fmt)
+
+                # number formats for value columns
+                table_first = row_ptr + 1                    # first data row
+                table_last  = row_ptr + len(df_model)        # last  data row
+
+                # locate the required columns
+                col_idx_map = {c: i for i, c in enumerate(df_model.columns)}
+                for c in ["realval", "predval", "absdiff"]:
+                    sheet.set_column(
+                        col_idx_map[c],
+                        col_idx_map[c],
+                        width=14,
+                        cell_format=comma_fmt,
+                    )
+                # pct %
+                sheet.set_column(
+                    col_idx_map["pct"],
+                    col_idx_map["pct"],
+                    width=9,
+                    cell_format=pct_fmt,
+                )
+
+                # ── 3. build chart ─────────────────────────────────────────────
+                chart = wb.add_chart({"type": "line"})
+                chart.set_title({"name": f"{model}  –  Real vs Pred"})
+                chart.set_y_axis({"name": "Warranty Cost"})
+                chart.set_x_axis({"name": "Record"})
+
+                # categories: simple row index 1..N, or build from month-year
+                cat_range = [sheet_name, table_first, col_idx_map["month"],
+                             table_last,  col_idx_map["month"]]  # month column
+
+                # Real series
+                chart.add_series(
+                    {
+                        "name":       "Real",
+                        "categories": cat_range,
+                        "values":     [sheet_name, table_first, col_idx_map["realval"],
+                                       table_last,  col_idx_map["realval"]],
+                    }
+                )
+                # Pred series
+                chart.add_series(
+                    {
+                        "name":       "Pred",
+                        "categories": cat_range,
+                        "values":     [sheet_name, table_first, col_idx_map["predval"],
+                                       table_last,  col_idx_map["predval"]],
+                    }
+                )
+
+                chart.set_legend({"position": "bottom"})
+
+                # position chart two columns to the right of the table
+                chart_col = len(df_model.columns) + 2
+                sheet.insert_chart(row_ptr, chart_col, chart, {"x_offset": 10, "y_offset": 5})
+
+                # advance pointer: table height + blank spacer
+                row_ptr += len(df_model) + 1 + blank_rows
+
+            # auto-fit widths for non-numeric columns (optional)
+            for col_idx, col in enumerate(df_plant.columns):
+                if col in ["realval", "predval", "absdiff", "pct"]:
+                    continue
+                max_len = max(df_plant[col].astype(str).str.len().max(), len(col)) + 2
+                sheet.set_column(col_idx, col_idx, max_len)
+
+
+# ------------------- Example use ---------------------------------
+if __name__ == "__main__":
+    # dummy data
+    demo = pd.DataFrame(
+        {
+            "plant": ["P1", "P1", "P1", "P2", "P2"],
+            "model": ["A", "A", "B", "A", "C"],
+            "month": [1, 2, 1, 1, 2],
+            "year":  [2025] * 5,
+            "realval": [12_345, 13_210, 6_500, 8_200, 7_800],
+            "predval": [12_100, 14_000, 6_900, 8_000, 8_500],
+            "absdiff": [245, 790, 400, 200, 700],
+            "pct":     [0.0199, 0.0597, 0.0615, 0.024, 0.0897],
+        }
+    )
+
+    export_with_charts(demo, "plant_model_results_with_charts.xlsx")
+
