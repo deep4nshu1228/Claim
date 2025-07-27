@@ -60,3 +60,42 @@ for plant, model in product(plants, models):
         # convert to YYYY-MM for concise printing
         gaps = ', '.join(missing.strftime('%Y-%m'))
         print(f'✗  {plant} | {model}:   missing → {gaps}')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import lightgbm as lgb
+
+features = feats + ['missing_flag']
+dtrain = lgb.Dataset(train[features], label=train['target'])
+dvalid = lgb.Dataset(test[features],  label=test['target'])
+
+params = dict(
+    objective='regression',
+    metric='rmse',
+    learning_rate=0.05,
+    num_leaves=64,
+    feature_fraction=0.8,
+    bagging_fraction=0.8,
+    bagging_freq=2,
+    seed=42
+)
+
+model = lgb.train(params, dtrain,
+                  valid_sets=[dtrain, dvalid],
+                  num_boost_round=5_000,
+                  early_stopping_rounds=200,
+                  verbose_eval=200)
+
