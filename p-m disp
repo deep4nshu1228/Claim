@@ -1,0 +1,35 @@
+import pandas as pd
+
+# --- 0.  Make sure the date column is real datetime --------------------------
+df['dispatch_date'] = pd.to_datetime(df['dispatch_date'], errors='coerce')
+
+# --- 1.  Boolean mask: “ends BEFORE 2021”  -----------------------------------
+last_sale_year = (
+    df.groupby(['plant', 'model'])['dispatch_date']
+      .transform('max')
+      .dt.year
+)
+
+mask_removed = last_sale_year < 2021          # True  → we will DROP these rows
+mask_keep    = ~mask_removed                  # False → we will KEEP these rows
+
+# --- 2.  Split the frame ------------------------------------------------------
+df_active  = df[mask_keep].reset_index(drop=True)      # what you keep
+df_removed = df[mask_removed].reset_index(drop=True)   # what you drop
+
+# --- 3.  Build the summary of the dropped plant-model pairs -------------------
+removed_summary = (
+    df_removed
+      .groupby(['plant', 'model'])['dispatch_date']
+      .agg(dispatch_start_date = 'min',      # first ever dispatch
+           dispatch_end_date   = 'max',      # last dispatch ( < 2021 by design)
+           n_records           = 'size')     # how many rows in original data
+      .reset_index()
+      .sort_values(['plant', 'model'])
+)
+
+print("Dropped plant-model pairs:")
+print(removed_summary.head())
+
+# optional: save to Excel / CSV
+# removed_summary.to_excel("removed_pairs.xlsx", index=False)
