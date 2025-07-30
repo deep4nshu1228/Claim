@@ -1,0 +1,8 @@
+Feature	What it is (plain English)	Why the model cares
+Rolling Mean (3/6/12 m)	The average warranty cost of the last 3, 6 or 12 months.	Smooths out one-off spikes and shows the underlying trend.
+Rolling Std (3/6/12 m)	The typical up-and-down spread of costs over the last 3, 6 or 12 months.	Tells the model how volatile each plant-model pair has been. High volatility often signals risk.
+pct_change_1	The percentage jump or drop in cost from the previous month.	Flags sudden shifts (e.g., a new defect or a successful fix) that can continue next month.
+EMA_6	A 6-month exponentially-weighted average that gives more weight to the most recent data.	Reacts quickly to recent process changes while still keeping some history.
+sin_month	The sine value of the calendar month (January = 0°, …, December ≈ 330°).	Encodes seasonality in a smooth, cyclical way so December and January stay “close” to each other.
+cos_month	The cosine value of the calendar month (same idea as sin_month).	Works with sin_month so the model can pinpoint the exact point in the yearly cycle.
+price_lag_1	Last month’s average selling price for that plant-model.	Captures the effect of recent discounts or price hikes on future warranty behaviour.
