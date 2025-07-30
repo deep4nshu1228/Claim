@@ -6,3 +6,31 @@ EMA_6	A 6-month exponentially-weighted average that gives more weight to the mos
 sin_month	The sine value of the calendar month (January = 0°, …, December ≈ 330°).	Encodes seasonality in a smooth, cyclical way so December and January stay “close” to each other.
 cos_month	The cosine value of the calendar month (same idea as sin_month).	Works with sin_month so the model can pinpoint the exact point in the yearly cycle.
 price_lag_1	Last month’s average selling price for that plant-model.	Captures the effect of recent discounts or price hikes on future warranty behaviour.
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Mean absolute SHAP value per feature
+mean_shap = np.abs(shap_values).mean(axis=0)
+
+# Convert to percentage
+feature_importance = pd.DataFrame({
+    'feature': X_train.columns,
+    'importance': mean_shap,
+})
+feature_importance['percentage'] = 100 * feature_importance['importance'] / feature_importance['importance'].sum()
+
+# Sort by percentage
+feature_importance = feature_importance.sort_values(by='percentage', ascending=False)
+
+
+plt.figure(figsize=(10, 6))
+plt.barh(feature_importance['feature'], feature_importance['percentage'], color='skyblue')
+plt.xlabel('Feature Contribution (%)')
+plt.title('Top Feature Contributions (SHAP)')
+plt.gca().invert_yaxis()  # Highest on top
+plt.tight_layout()
+plt.show()
