@@ -42,4 +42,14 @@ def smape_obj(preds, train_data):
     grad = np.sign(preds - y) * 200 / (np.abs(y) + np.abs(preds))
     hess = 200 / (np.abs(y) + np.abs(preds))
     return grad, hess
+
+
+
+
+def plot_price_distribution(df: pd.DataFrame):
+    plt.figure(figsize=(8, 5))
+    sns.histplot(df["price"], bins=50, kde=True, log_scale=True)
+    plt.title("Price Distribution (log scale)")
+    plt.xlabel("Price")
+    plt.ylabel("Count")
  
