@@ -33,3 +33,13 @@ print(removed_summary.head())
 
 # optional: save to Excel / CSV
 # removed_summary.to_excel("removed_pairs.xlsx", index=False)
+
+
+
+# Symmetric MAPE on raw target
+def smape_obj(preds, train_data):
+    y = train_data.get_label()
+    grad = np.sign(preds - y) * 200 / (np.abs(y) + np.abs(preds))
+    hess = 200 / (np.abs(y) + np.abs(preds))
+    return grad, hess
+ 
