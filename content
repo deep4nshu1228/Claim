@@ -34,3 +34,17 @@ plt.title('Top Feature Contributions (SHAP)')
 plt.gca().invert_yaxis()  # Highest on top
 plt.tight_layout()
 plt.show()
+
+plt.figure(figsize=(10, 6))
+bars = plt.barh(top_features['feature'], top_features['percentage'], color='skyblue')
+
+# Add percentage labels next to the bars
+for bar in bars:
+    width = bar.get_width()
+    plt.text(width + 0.5, bar.get_y() + bar.get_height()/2,
+             f'{width:.1f}%', va='center')
+
+plt.xlabel('Feature Contribution (%)')
+plt.title(f'Top {top_n} Feature Contributions (SHAP)')
+plt.tight_layout()
+plt.show()
