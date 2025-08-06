@@ -1,0 +1,11 @@
+Feature	What It Means in Plain English	How It Helps the Model
+Plant	Which factory built the motorcycle.	Flags factory-specific bumps like local holidays or shipping delays.
+Model Family	Bike line, e.g., Splendor or Glamour.	Separates sales patterns of commuter vs. premium bikes.
+Month (sin)	Wave-style code for “where we are in the year.”	Tells the model the current spot in the yearly sales cycle.
+Month (cos)	Companion wave that starts at a different point.	Completes the cycle so December-to-January jump stays smooth.
+Dispatch Age	Months since the model first hit showroom floors.	Captures ramp-up, peak, and slow-down of a product’s life.
+5-Month Rolling Average	Average sales over the most recent five months.	Gives a steady “normal” level by smoothing recent noise.
+3-Month Rolling Volatility	How wildly sales bounced in the last three months.	Signals whether demand is calm or jumpy right now.
+1-Month Percent Change	Jump up or down compared with the previous month.	Alerts the model to sudden moves that may continue.
+6-Month EMA	Trend line that weights recent months more heavily.	Fast-reacting trend without overreacting to one odd month.
+Last-Month Price	Price tag buyers saw one month ago.	Latest price clue for spotting price-demand effects.
