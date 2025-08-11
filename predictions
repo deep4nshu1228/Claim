@@ -90,3 +90,31 @@ def make_predictions(pred_grid, model):
 
 print("✅ Feature engineering functions defined")
 
+
+
+
+import pandas as pd
+import numpy as np
+import lightgbm as lgb
+from datetime import datetime
+import joblib
+from pathlib import Path
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
+
+# Configuration parameters
+MAX_AGE = 60
+WIN = 6      # rolling window
+SPAN = 6     # EMA span
+START_MONTH = '2025-08'
+
+# Feature columns
+FEATURE_COLS = ['cpu_ema6', 'cpu_roll_mean6', 'cpu_roll_std6', 'cpu_pctchg1', 'cpu_lag1']
+MODEL_FEATURES = ['age', 'plant', 'model', 'dispatch_month_num',
+                  'cpu_ema6', 'cpu_roll_mean6', 'cpu_roll_std6',
+                  'cpu_pctchg1', 'cpu_lag1', 'volume']
+
+print("✅ Libraries imported and configuration set")
+
+
