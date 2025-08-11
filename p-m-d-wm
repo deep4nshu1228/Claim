@@ -1,40 +1,57 @@
-fig, ax = plt.subplots(figsize=(12, 8))
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+from math import ceil
 
-# Create a unique identifier for each plant-model-dispatch_month combination
+# Ensure warranty_month is in datetime format
+df['warranty_month'] = pd.to_datetime(df['warranty_month'])
+
+# Create unique combination identifier
 df['combo'] = df['plant'].astype(str) + '-' + df['model'].astype(str) + '-' + df['dispatch_month'].astype(str)
+unique_combos = df['combo'].unique()
 
-# Plot each combination as a separate line
-for combo in df['combo'].unique():
+# Calculate grid dimensions
+n_combos = len(unique_combos)
+cols = 3  # Number of columns in subplot grid
+rows = ceil(n_combos / cols)
+
+# Create subplots
+fig, axes = plt.subplots(rows, cols, figsize=(15, 5*rows), sharey=True)
+axes = axes.flatten() if n_combos > 1 else [axes]
+
+for i, combo in enumerate(unique_combos):
     subset = df[df['combo'] == combo]
     
-    # Count occurrences per warranty_month (or use whatever metric you want to plot)
+    # Count warranty months for this combination
     monthly_counts = subset.groupby('warranty_month').size().reset_index(name='count')
     
-    ax.plot(monthly_counts['warranty_month'], monthly_counts['count'], 
-            marker='o', label=combo, linewidth=2, markersize=4)
+    # Plot on the specific subplot
+    axes[i].bar(monthly_counts['warranty_month'], monthly_counts['count'], 
+                width=20, alpha=0.7, color=plt.cm.Set3(i % 12))
+    
+    # Configure MonthLocator and DateFormatter
+    axes[i].xaxis.set_major_locator(mdates.MonthLocator(interval=6))
+    axes[i].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    axes[i].xaxis.set_minor_locator(mdates.MonthLocator(interval=1))
+    
+    # Formatting
+    axes[i].set_title(f'{combo}\n({len(monthly_counts)} warranty months)', fontsize=10, pad=10)
+    axes[i].tick_params(axis='x', rotation=45, labelsize=8)
+    axes[i].grid(True, alpha=0.3)
+    
+    # Add count annotations on bars
+    for j, (month, count) in enumerate(zip(monthly_counts['warranty_month'], monthly_counts['count'])):
+        axes[i].annotate(f'{count}', 
+                        (month, count), 
+                        ha='center', va='bottom', fontsize=8)
 
-# Configure MonthLocator and DateFormatter
-month_locator = mdates.MonthLocator(interval=3)  # Every 3 months
-month_formatter = mdates.DateFormatter('%Y-%m')  # Format as YYYY-MM
+# Hide empty subplots
+for i in range(n_combos, len(axes)):
+    axes[i].set_visible(False)
 
-# Apply the locator and formatter
-ax.xaxis.set_major_locator(month_locator)
-ax.xaxis.set_major_formatter(month_formatter)
-
-# Optional: Add minor ticks for every month
-minor_locator = mdates.MonthLocator(interval=1)
-ax.xaxis.set_minor_locator(minor_locator)
-
-# Formatting
-plt.xlabel('Warranty Month')
-plt.ylabel('Count of Data Points')
-plt.title('Monthly Warranty Data by Plant-Model-Dispatch Month')
-plt.xticks(rotation=45)
-plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.grid(True, alpha=0.3)
+plt.suptitle('Warranty Month Distribution by Plant-Model-Dispatch Month Combinations', 
+             fontsize=14, fontweight='bold')
 plt.tight_layout()
-
-# Auto-format dates for better display
 fig.autofmt_xdate()
-
 plt.show()
