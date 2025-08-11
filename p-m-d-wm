@@ -1,0 +1,40 @@
+fig, ax = plt.subplots(figsize=(12, 8))
+
+# Create a unique identifier for each plant-model-dispatch_month combination
+df['combo'] = df['plant'].astype(str) + '-' + df['model'].astype(str) + '-' + df['dispatch_month'].astype(str)
+
+# Plot each combination as a separate line
+for combo in df['combo'].unique():
+    subset = df[df['combo'] == combo]
+    
+    # Count occurrences per warranty_month (or use whatever metric you want to plot)
+    monthly_counts = subset.groupby('warranty_month').size().reset_index(name='count')
+    
+    ax.plot(monthly_counts['warranty_month'], monthly_counts['count'], 
+            marker='o', label=combo, linewidth=2, markersize=4)
+
+# Configure MonthLocator and DateFormatter
+month_locator = mdates.MonthLocator(interval=3)  # Every 3 months
+month_formatter = mdates.DateFormatter('%Y-%m')  # Format as YYYY-MM
+
+# Apply the locator and formatter
+ax.xaxis.set_major_locator(month_locator)
+ax.xaxis.set_major_formatter(month_formatter)
+
+# Optional: Add minor ticks for every month
+minor_locator = mdates.MonthLocator(interval=1)
+ax.xaxis.set_minor_locator(minor_locator)
+
+# Formatting
+plt.xlabel('Warranty Month')
+plt.ylabel('Count of Data Points')
+plt.title('Monthly Warranty Data by Plant-Model-Dispatch Month')
+plt.xticks(rotation=45)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+
+# Auto-format dates for better display
+fig.autofmt_xdate()
+
+plt.show()
