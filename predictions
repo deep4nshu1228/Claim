@@ -186,3 +186,162 @@ print("✅ Master dataset update functions defined")
 
 
 
+
+
+
+
+
+
+
+# SINGLE MONTH PRED 
+def predict_single_month(master_df, model, forecast_month):
+    """Predict for a single month - useful for testing"""
+    print(f"Predicting for {forecast_month}...")
+    
+    # Create prediction grid
+    pred_grid = create_prediction_grid_for_month(master_df, forecast_month)
+    
+    if pred_grid.empty:
+        print(f"  No cohorts to predict for {forecast_month}")
+        return pd.DataFrame(), 0
+    
+    # Attach features and make predictions
+    pred_grid = attach_features_to_grid(pred_grid, master_df)
+    pred_grid = make_predictions(pred_grid, model)
+    
+    total_cost = pred_grid['cost_hat'].sum()
+    print(f"  Total predicted cost: ₹{total_cost:,.0f}")
+    print(f"  Number of cohorts: {len(pred_grid)}")
+    
+    return pred_grid, total_cost
+
+# Test single month prediction
+# test_pred, test_cost = predict_single_month(master_df, model, '2025-08')
+# print(f"✅ Single month test completed")
+
+
+
+
+
+# 60 Mon pred
+def forecast_60_months_step_by_step(master_df, model, start_month='2025-08'):
+    """Main forecasting function - can be run interactively"""
+    
+    start_period = pd.Period(start_month, freq='M')
+    forecast_results = {}
+    current_master = master_df.copy()
+    
+    print(f"🚀 Starting 60-month forecast from {start_period}")
+    print("=" * 60)
+    
+    for month_offset in range(60):
+        current_month = start_period + month_offset
+        month_str = str(current_month)
+        
+        print(f"📅 Month {month_offset + 1}/60: {current_month}")
+        
+        # Generate prediction grid
+        pred_grid = create_prediction_grid_for_month(current_master, month_str)
+        
+        if pred_grid.empty:
+            print(f"   ⚠️  No data to predict for {current_month}")
+            forecast_results[month_str] = {'total_cost': 0, 'detail': pd.DataFrame()}
+            continue
+        
+        # Attach features and predict
+        pred_grid = attach_features_to_grid(pred_grid, current_master)
+        pred_grid = make_predictions(pred_grid, model)
+        
+        # Store results
+        total_cost = pred_grid['cost_hat'].sum()
+        forecast_results[month_str] = {
+            'total_cost': total_cost,
+            'detail': pred_grid.copy()
+        }
+        
+        print(f"   💰 Predicted cost: ₹{total_cost:,.0f} ({len(pred_grid)} cohorts)")
+        
+        # Update master dataset with predictions
+        current_master = update_master_with_predictions(current_master, pred_grid, month_str)
+        
+        # Recalculate rolling features for affected cohorts
+        affected_cohorts = pred_grid[['plant', 'model', 'dispatch_month']].drop_duplicates()
+        current_master = recalculate_rolling_features_for_cohorts(current_master, affected_cohorts)
+        
+        # Progress indicator every 10 months
+        if (month_offset + 1) % 10 == 0:
+            cumulative_cost = sum([r['total_cost'] for r in forecast_results.values()])
+            print(f"   📊 Cumulative cost after {month_offset + 1} months: ₹{cumulative_cost:,.0f}")
+            print("-" * 40)
+    
+    print("✅ 60-month forecast completed!")
+    return forecast_results, current_master
+
+# Run the main forecast
+# forecast_results, final_master_df = forecast_60_months_step_by_step(master_df, model, START_MONTH)
+
+
+
+
+# ANALYSIS
+def generate_forecast_summary(forecast_results):
+    """Generate comprehensive summary from forecast results"""
+    
+    # Monthly totals
+    monthly_data = []
+    all_details = []
+    
+    for month, result in forecast_results.items():
+        monthly_data.append({
+            'month': month,
+            'total_cost': result['total_cost'],
+            'num_cohorts': len(result['detail']) if not result['detail'].empty else 0
+        })
+        
+        if not result['detail'].empty:
+            detail_copy = result['detail'].copy()
+            detail_copy['forecast_month'] = month
+            all_details.append(detail_copy)
+    
+    monthly_summary = pd.DataFrame(monthly_data)
+    
+    # Combine all details
+    if all_details:
+        combined_details = pd.concat(all_details, ignore_index=True)
+        
+        # Plant-wise summary
+        plant_summary = combined_details.groupby('plant')['cost_hat'].sum().reset_index()
+        plant_summary.columns = ['plant', 'total_cost_60m']
+        
+        # Model-wise summary
+        model_summary = combined_details.groupby(['plant', 'model'])['cost_hat'].sum().reset_index()
+        model_summary.columns = ['plant', 'model', 'total_cost_60m']
+        
+        # Age-wise summary
+        age_summary = combined_details.groupby('age')['cost_hat'].sum().reset_index()
+        age_summary.columns = ['age', 'total_cost_60m']
+        
+    else:
+        combined_details = pd.DataFrame()
+        plant_summary = pd.DataFrame()
+        model_summary = pd.DataFrame()
+        age_summary = pd.DataFrame()
+    
+    total_60m_cost = monthly_summary['total_cost'].sum()
+    
+    return {
+        'monthly_summary': monthly_summary,
+        'plant_summary': plant_summary,
+        'model_summary': model_summary,
+        'age_summary': age_summary,
+        'combined_details': combined_details,
+        'total_60_month_cost': total_60m_cost
+    }
+
+# Generate summary
+# summary = generate_forecast_summary(forecast_results)
+# print(f"📈 Total 60-month forecast: ₹{summary['total_60_month_cost']:,.0f}")
+
+
+
+
