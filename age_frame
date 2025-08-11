@@ -1,0 +1,55 @@
+import pandas as pd
+import numpy as np
+
+# --------------------
+# Config
+# --------------------
+FORECAST_MONTH = pd.Period("2025-08", freq="M")
+MAX_AGE = 60
+
+# Example df: plant | model | dispatch_month | volume
+# Make sure dispatch_month is Period[M]
+df['dispatch_month'] = pd.to_datetime(df['dispatch_month']).dt.to_period('M')
+
+# --------------------
+# Step 1: Keep only last 60 dispatch months
+# --------------------
+cutoff_dispatch = FORECAST_MONTH - (MAX_AGE - 1)
+cohorts = (
+    df.loc[df['dispatch_month'].between(cutoff_dispatch, FORECAST_MONTH)]
+      .drop_duplicates(['plant','model','dispatch_month','volume'])
+      .copy()
+)
+
+# --------------------
+# Step 2: How old each batch will be in Aug-25
+# --------------------
+cohorts['months_alive'] = (FORECAST_MONTH - cohorts['dispatch_month']).apply(lambda x: x.n)
+
+# --------------------
+# Step 3: Explode each batch to all future ages
+# --------------------
+def make_future_rows(row):
+    start_age = row['months_alive'] + 1          # next age after Aug-25 month
+    if start_age < 1:
+        start_age = 1
+    age_range = np.arange(start_age, MAX_AGE + 1)
+    warranty_months = [row['dispatch_month'] + (age - 1) for age in age_range]
+    return pd.DataFrame({
+        'plant'         : row['plant'],
+        'model'         : row['model'],
+        'dispatch_month': row['dispatch_month'],
+        'volume'        : row['volume'],
+        'age'           : age_range,
+        'warranty_month': warranty_months
+    })
+
+pred_grid = pd.concat([make_future_rows(r) for _, r in cohorts.iterrows()],
+                      ignore_index=True)
+
+# --------------------
+# Step 4: Optional string conversion for warranty month
+# --------------------
+pred_grid['warranty_month'] = pred_grid['warranty_month'].astype(str)
+
+print(pred_grid.head(15))
