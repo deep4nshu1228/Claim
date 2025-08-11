@@ -1,0 +1,110 @@
+Warranty Cost Forecasting – Logic Document
+1. Objective
+To forecast the warranty cost for the next 60 months for each vehicle based on its dispatch month, using historical warranty cost patterns and volumes.
+
+2. Data Inputs
+Source: Historical warranty claim data and dispatch records.
+
+Data Structure:
+
+Plant	Model	Dispatch Month	Age (Months)	Volume	Costing
+A	X	2020-01	1	50	1000
+A	X	2020-01	2	48	800
+...	...	...	...	...	...
+
+Field Details:
+
+Plant: Manufacturing plant code or name.
+
+Model: Vehicle model name or code.
+
+Dispatch Month: The month in which the vehicle was dispatched.
+
+Age (Months): The number of months since dispatch (1 = next month after dispatch, up to 60).
+
+Volume: Number of vehicles in that plant-model-dispatch-age combination.
+
+Costing: Total warranty cost incurred for that combination.
+
+3. Pre-Processing Logic
+Data Cleaning
+
+Ensure dispatch month and age are in correct date/number formats.
+
+Remove or impute missing costing or volume values.
+
+Exclude records where volume ≤ 0 or cost < 0 (if invalid).
+
+Data Aggregation
+
+Group by Plant, Model, Dispatch Month, Age.
+
+Aggregate:
+
+Volume = SUM(volume)
+
+Costing = SUM(costing)
+
+Cost Per Unit Calculation
+
+CPU = Costing / Volume
+
+This represents average cost per vehicle for that age.
+
+4. Historical Pattern Extraction
+Pivot Table / Matrix Creation
+
+Index: Dispatch Month
+
+Columns: Age 1 → Age 60
+
+Values: CPU
+
+Average CPU per Age
+
+For each Plant + Model, calculate historical average CPU for each age from historical data.
+
+Trend/Seasonality Analysis
+
+Identify if CPU has seasonality by month-of-year or age-based decay pattern.
+
+5. Forecasting Logic
+Forecasting CPU
+
+For each Plant + Model:
+
+Predict CPU for ages 1–60 based on historical averages or a time-series model (e.g., exponential smoothing, regression with age).
+
+Adjust for inflation, policy changes, or cost index (if available).
+
+Forecasting Volume
+
+Get projected dispatch volumes for future months.
+
+Assign age = 1 for next month after dispatch, increment until age 60.
+
+Final Cost Calculation
+
+Forecasted Cost = Forecasted CPU × Forecasted Volume for each Plant, Model, Dispatch Month, and Age.
+
+6. Output Structure
+Plant	Model	Dispatch Month	Age	Forecasted Volume	Forecasted CPU	Forecasted Cost
+
+7. Example
+Historical Data (Sample)
+Plant A, Model X, Dispatch Jan 2020
+
+Age	Volume	Costing	CPU
+1	50	1000	20
+2	48	800	16.67
+
+Forecast Logic:
+If CPU for Age 1 historically = 20, and projected volume for Age 1 = 60, then:
+Forecasted Cost = 20 × 60 = 1200
+
+8. Assumptions
+Warranty cost patterns by age remain stable unless adjusted for known factors.
+
+Dispatch volumes are accurate for forecasting horizon.
+
+External cost adjustments (inflation, currency, policy) applied separately.
