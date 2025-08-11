@@ -118,3 +118,71 @@ MODEL_FEATURES = ['age', 'plant', 'model', 'dispatch_month_num',
 print("✅ Libraries imported and configuration set")
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def update_master_with_predictions(master_df, pred_grid, forecast_month):
+    """Update master dataset with predictions for future feature calculations"""
+    if pred_grid.empty:
+        return master_df
+    
+    # Create new rows for master dataset
+    new_rows = pred_grid[['plant', 'model', 'dispatch_month', 'age', 'volume', 'cpu_hat']].copy()
+    new_rows['cpu'] = new_rows['cpu_hat']  # Use prediction as actual for feature calculation
+    new_rows['cost'] = new_rows['cpu_hat'] * new_rows['volume']
+    new_rows['claim_month'] = pd.Period(forecast_month, freq='M')
+    new_rows = new_rows.drop('cpu_hat', axis=1)
+    
+    # Append to master dataset
+    updated_master = pd.concat([master_df, new_rows], ignore_index=True)
+    
+    return updated_master
+
+def recalculate_rolling_features_for_cohorts(master_df, affected_cohorts):
+    """Recalculate rolling features for specific cohorts"""
+    for _, cohort in affected_cohorts.iterrows():
+        mask = ((master_df['plant'] == cohort['plant']) & 
+               (master_df['model'] == cohort['model']) & 
+               (master_df['dispatch_month'] == cohort['dispatch_month']))
+        
+        if not mask.any():
+            continue
+            
+        cohort_data = master_df[mask].sort_values('age').copy()
+        
+        # Recalculate rolling features for this cohort
+        cohort_data['cpu_ema6'] = cohort_data['cpu'].ewm(span=SPAN, adjust=False).mean()
+        cohort_data['cpu_roll_mean6'] = cohort_data['cpu'].rolling(WIN, min_periods=1).mean()
+        cohort_data['cpu_roll_std6'] = cohort_data['cpu'].rolling(WIN, min_periods=2).std()
+        cohort_data['cpu_lag1'] = cohort_data['cpu'].shift(1)
+        cohort_data['cpu_pctchg1'] = cohort_data['cpu'].pct_change()
+        
+        # Handle infinities
+        cohort_data['cpu_pctchg1'].replace([np.inf, -np.inf], np.nan, inplace=True)
+        cohort_data[FEATURE_COLS] = cohort_data[FEATURE_COLS].ffill()
+        
+        # Update master dataset
+        master_df.loc[mask, FEATURE_COLS] = cohort_data[FEATURE_COLS].values
+    
+    return master_df
+
+print("✅ Master dataset update functions defined")
+
+
+
