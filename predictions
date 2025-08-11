@@ -44,3 +44,49 @@ def create_prediction_grid_for_month(master_df, forecast_month):
     return cohorts
 
 print("✅ Data preparation functions defined")
+
+
+
+
+def attach_features_to_grid(pred_grid, master_df):
+    """Attach rolling features to prediction grid"""
+    if pred_grid.empty:
+        return pred_grid
+    
+    # Merge with latest available features
+    feature_data = master_df[['plant', 'model', 'dispatch_month', 'age'] + FEATURE_COLS]
+    
+    pred_grid = pred_grid.merge(
+        feature_data,
+        on=['plant', 'model', 'dispatch_month', 'age'],
+        how='left'
+    )
+    
+    # Forward-fill features within each cohort for missing ages
+    pred_grid[FEATURE_COLS] = (
+        pred_grid.groupby(['plant', 'model', 'dispatch_month'])[FEATURE_COLS].ffill()
+    )
+    
+    # Add calendar features
+    pred_grid['dispatch_month_num'] = pred_grid['dispatch_month'].astype(int)
+    
+    return pred_grid
+
+def make_predictions(pred_grid, model):
+    """Generate CPU and cost predictions"""
+    if pred_grid.empty:
+        return pred_grid
+    
+    # Ensure all required features are present
+    X = pred_grid[MODEL_FEATURES]
+    
+    # Predict CPU
+    pred_grid['cpu_hat'] = model.predict(X)
+    
+    # Convert to total cost
+    pred_grid['cost_hat'] = pred_grid['cpu_hat'] * pred_grid['volume']
+    
+    return pred_grid
+
+print("✅ Feature engineering functions defined")
+
