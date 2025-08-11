@@ -1,0 +1,46 @@
+def prepare_historical_features(df_hist):
+    """Prepare historical data with all rolling features"""
+    df = df_hist.copy()
+    df['dispatch_month'] = pd.to_datetime(df['dispatch_month']).dt.to_period('M')
+    df['cpu'] = df['cost'] / df['volume']
+    
+    # Calculate rolling features
+    grp = df.groupby(['plant', 'model', 'dispatch_month'])
+    
+    df['cpu_ema6'] = grp['cpu'].apply(lambda s: s.ewm(span=SPAN, adjust=False).mean())
+    df['cpu_roll_mean6'] = grp['cpu'].apply(lambda s: s.rolling(WIN, min_periods=1).mean())
+    df['cpu_roll_std6'] = grp['cpu'].apply(lambda s: s.rolling(WIN, min_periods=2).std())
+    df['cpu_lag1'] = grp['cpu'].shift(1)
+    df['cpu_pctchg1'] = grp['cpu'].pct_change()
+    
+    # Handle infinities and NaNs
+    df['cpu_pctchg1'].replace([np.inf, -np.inf], np.nan, inplace=True)
+    df[FEATURE_COLS] = df.groupby(['plant', 'model', 'dispatch_month'])[FEATURE_COLS].ffill()
+    
+    return df
+
+def create_prediction_grid_for_month(master_df, forecast_month):
+    """Create prediction grid for a specific forecast month"""
+    forecast_period = pd.Period(forecast_month, freq='M')
+    cutoff_dispatch = forecast_period - (MAX_AGE - 1)
+    
+    # Get unique cohorts
+    cohorts = (
+        master_df.loc[master_df['dispatch_month'].between(cutoff_dispatch, forecast_period)]
+        [['plant', 'model', 'dispatch_month', 'volume']].drop_duplicates()
+    )
+    
+    if cohorts.empty:
+        return pd.DataFrame()
+    
+    # Calculate age each cohort will be in forecast month
+    cohorts['age'] = (forecast_period - cohorts['dispatch_month']).apply(lambda x: x.n)
+    
+    # Keep only valid ages (1-60)
+    cohorts = cohorts.query('1 <= age <= @MAX_AGE').copy()
+    cohorts['forecast_month'] = forecast_period
+    cohorts['warranty_month'] = forecast_period
+    
+    return cohorts
+
+print("✅ Data preparation functions defined")
