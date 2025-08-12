@@ -1,0 +1,224 @@
+def create_prediction_grid_for_month_rolling(working_master, forecast_month):
+    """
+    Create prediction grid for rolling forecast
+    Only creates grid for cohorts that will be active in forecast month
+    """
+    forecast_period = pd.Period(forecast_month, freq='M')
+    cutoff_dispatch = forecast_period - (MAX_AGE - 1)
+    
+    # Get cohorts that will be active in forecast month
+    active_cohorts = (
+        working_master.loc[working_master['dispatch_month'].between(cutoff_dispatch, forecast_period)]
+        [['plant', 'model', 'dispatch_month', 'volume']].drop_duplicates()
+    )
+    
+    if active_cohorts.empty:
+        return pd.DataFrame()
+    
+    # Calculate age for forecast month
+    active_cohorts['age'] = (forecast_period - active_cohorts['dispatch_month']).apply(lambda x: x.n)
+    active_cohorts = active_cohorts.query('1 <= age <= @MAX_AGE').copy()
+    active_cohorts['warranty_month'] = forecast_period
+    
+    return active_cohorts
+
+
+
+
+
+
+
+
+
+def calculate_features_with_shift(working_master):
+    """
+    Calculate all rolling features with shift(1) to avoid leakage
+    Updates the working master table with latest features
+    """
+    
+    # Sort properly
+    working_master = working_master.sort_values(['plant', 'model', 'dispatch_month', 'age'])
+    
+    # Group by cohort
+    grp = working_master.groupby(['plant', 'model', 'dispatch_month'])
+    
+    # Calculate features with shift(1) - this is key for no leakage
+    working_master['cpu_ema6'] = grp['cpu'].apply(
+        lambda s: s.shift(1).ewm(span=SPAN, adjust=False).mean()
+    )
+    working_master['cpu_roll_mean6'] = grp['cpu'].apply(
+        lambda s: s.shift(1).rolling(WIN, min_periods=1).mean()
+    )
+    working_master['cpu_roll_std6'] = grp['cpu'].apply(
+        lambda s: s.shift(1).rolling(WIN, min_periods=2).std()
+    )
+    working_master['cpu_lag1'] = grp['cpu'].shift(1)
+    working_master['cpu_pctchg1'] = grp['cpu'].pct_change().shift(1)
+    
+    # Handle infinities and NaNs
+    working_master['cpu_pctchg1'].replace([np.inf, -np.inf], np.nan, inplace=True)
+    working_master['cpu_roll_std6'] = working_master['cpu_roll_std6'].fillna(0)
+    
+    # Forward fill within cohorts
+    working_master[FEATURE_COLS] = (
+        working_master.groupby(['plant', 'model', 'dispatch_month'])[FEATURE_COLS]
+        .ffill()
+    )
+    
+    # Add cohort priors (recalculate as data grows)
+    priors = (
+        working_master.groupby(['plant', 'model'])['cpu']
+        .agg(pm_cpu_mean='mean', pm_cpu_std='std', pm_obs_cnt='count')
+        .reset_index()
+    )
+    
+    # Remove old priors and add new ones
+    prior_cols = ['pm_cpu_mean', 'pm_cpu_std', 'pm_obs_cnt']
+    working_master = working_master.drop(columns=[col for col in prior_cols if col in working_master.columns])
+    working_master = working_master.merge(priors, on=['plant', 'model'], how='left')
+    
+    return working_master
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def attach_features_to_grid_rolling(pred_grid, working_master, current_month):
+    """
+    Attach features to prediction grid for rolling forecast
+    Uses the most recent feature values available for each cohort
+    """
+    if pred_grid.empty:
+        return pred_grid
+    
+    # Get the most recent features for each cohort
+    latest_features = (
+        working_master.groupby(['plant', 'model', 'dispatch_month'])
+        .apply(lambda group: group.loc[group['age'].idxmax()])
+        [['plant', 'model', 'dispatch_month'] + FEATURE_COLS + ['pm_cpu_mean', 'pm_cpu_std', 'pm_obs_cnt']]
+        .reset_index(drop=True)
+    )
+    
+    # Merge with prediction grid
+    pred_grid = pred_grid.merge(
+        latest_features,
+        on=['plant', 'model', 'dispatch_month'],
+        how='left'
+    )
+    
+    # Handle any remaining NaNs
+    all_feature_cols = FEATURE_COLS + ['pm_cpu_mean', 'pm_cpu_std', 'pm_obs_cnt']
+    for col in all_feature_cols:
+        if col in pred_grid.columns and pred_grid[col].isnull().any():
+            median_val = pred_grid[col].median()
+            pred_grid[col] = pred_grid[col].fillna(median_val if not pd.isna(median_val) else 0)
+    
+    # Add calendar features
+    pred_grid['dispatch_month_num'] = pred_grid['dispatch_month'].astype(int)
+    
+    return pred_grid
+
+
+
+
+
+
+
+
+
+
+
+def append_predictions_to_master(working_master, pred_grid, current_month):
+    """
+    Append predictions to working master table for next month's feature calculation
+    """
+    if pred_grid.empty:
+        return working_master
+    
+    # Create new rows from predictions
+    new_rows = pred_grid[['plant', 'model', 'dispatch_month', 'age', 'volume', 'cpu_hat']].copy()
+    new_rows['cost'] = new_rows['cpu_hat'] * new_rows['volume']
+    new_rows['cpu'] = new_rows['cpu_hat']
+    new_rows['warranty_month'] = pd.Period(current_month, freq='M')
+    new_rows = new_rows.drop('cpu_hat', axis=1)
+    
+    # Append to working master
+    working_master = pd.concat([working_master, new_rows], ignore_index=True)
+    
+    return working_master
+
+
+
+
+
+def rolling_60_month_forecast(master_df, model, start_month='2025-08'):
+    """
+    Rolling 60-month forecast with incremental master table updates
+    Each month's predictions become inputs for next month's features
+    """
+    
+    print(f"🚀 Starting rolling 60-month forecast from {start_month}")
+    print("=" * 60)
+    
+    # Initialize working master table
+    working_master = master_df.copy()
+    working_master['dispatch_month'] = pd.to_datetime(working_master['dispatch_month']).dt.to_period('M')
+    working_master['warranty_month'] = pd.to_datetime(working_master['warranty_month']).dt.to_period('M')
+    working_master['cpu'] = working_master['cost'] / working_master['volume']
+    
+    # Store all forecast results
+    forecast_results = {}
+    start_period = pd.Period(start_month, freq='M')
+    
+    for month_offset in range(60):
+        current_month = start_period + month_offset
+        month_str = str(current_month)
+        
+        print(f"📅 Month {month_offset + 1}/60: {current_month}")
+        
+        # Step 1: Create prediction grid for current month
+        pred_grid = create_prediction_grid_for_month_rolling(working_master, month_str)
+        
+        if pred_grid.empty:
+            print(f"   ⚠️  No cohorts to predict for {current_month}")
+            forecast_results[month_str] = {'total_cost': 0, 'detail': pd.DataFrame()}
+            continue
+        
+        # Step 2: Calculate features with shift (no leakage)
+        working_master = calculate_features_with_shift(working_master)
+        
+        # Step 3: Attach features to prediction grid
+        pred_grid = attach_features_to_grid_rolling(pred_grid, working_master, current_month)
+        
+        # Step 4: Make predictions
+        pred_grid = make_predictions(pred_grid, model)
+        
+        # Step 5: Store results
+        total_cost = pred_grid['cost_hat'].sum()
+        forecast_results[month_str] = {
+            'total_cost': total_cost,
+            'detail': pred_grid.copy()
+        }
+        
+        print(f"   💰 Predicted cost: ₹{total_cost:,.0f} ({len(pred_grid)} cohorts)")
+        
+        # Step 6: Append predictions to working master table
+        working_master = append_predictions_to_master(working_master, pred_grid, current_month)
+        
+        # Progress update every 10 months
+        if (month_offset + 1) % 10 == 0:
+            cumulative_cost = sum([r['total_cost'] for r in forecast_results.values()])
+            print(f"   📊 Cumulative cost after {month_offset + 1} months: ₹{cumulative_cost:,.0f}")
+            print("-" * 40)
+    
+    print("✅ 60-month rolling forecast completed!")
+    return forecast_results, working_master
