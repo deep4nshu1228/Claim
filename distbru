@@ -14,4 +14,28 @@ plt.subplot(1, 2, 2)
 plt.hist(y_test, bins=30, alpha=0.7, label='Test')
 plt.title('Test Data Distribution')
 plt.show()
+
+
+
+import pandas as pd
+
+# Example df
+# df = pd.DataFrame({"WARRANTY_COST": [100, 120, 130, 125, 140]})
+
+# Create lag features
+df['lag_1'] = df['WARRANTY_COST'].shift(1)
+df['lag_2'] = df['WARRANTY_COST'].shift(2)
+df['lag_3'] = df['WARRANTY_COST'].shift(3)
+
+# Backward differences
+df['backward_diff_lag1'] = df['lag_1'] - df['lag_2']
+df['backward_diff_lag2'] = df['lag_2'] - df['lag_3']
+
+# Trend slope over last 3 intervals (same as your function)
+df['trend_slope'] = ((df['lag_1'] - df['lag_2']) + (df['lag_2'] - df['lag_3'])) / 2
+
+# Time index (starting at 1)
+df['time_index'] = range(1, len(df) + 1)
+
+print(df)
  
