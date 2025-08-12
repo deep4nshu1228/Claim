@@ -1,0 +1,3 @@
+features = lambda data: {'lag_1': data[-1], 'lag_2': data[-2], 'lag_3': data[-3], 'backward_diff_lag1': data[-1] - data[-2], 'backward_diff_lag2': data[-2] - data[-3], 'trend_slope': sum(data[i+1] - data[i] for i in range(len(data)-3, len(data)-1)) / 2, 'time_index': len(data) + 1}
+
+ 
