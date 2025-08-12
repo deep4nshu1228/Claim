@@ -222,3 +222,59 @@ def rolling_60_month_forecast(master_df, model, start_month='2025-08'):
     
     print("✅ 60-month rolling forecast completed!")
     return forecast_results, working_master
+
+
+
+
+
+import numpy as np
+
+feature_cols = ['roll_mean', 'std', 'pctchange', 'pricelag', 'ema6']
+
+# Identify Case 1 rows (all features null)
+case1_mask = combined[feature_cols].isnull().all(axis=1)
+
+# Separate historical data for lookup
+hist_data = combined[combined['is_future'] == False]
+
+# Function to fill missing features for one row
+def fill_first_month(row):
+    plant, model, age = row['plant'], row['model'], row['age']
+    
+    # Try mean for same plant-model-age
+    same_age = hist_data[
+        (hist_data['plant'] == plant) &
+        (hist_data['model'] == model) &
+        (hist_data['age'] == age)
+    ]['cost_per_unit']
+    
+    if not same_age.empty:
+        val = same_age.mean()
+    else:
+        # Get earliest month for this model
+        model_data = hist_data[
+            (hist_data['plant'] == plant) &
+            (hist_data['model'] == model)
+        ]
+        if model_data.empty:
+            val = np.nan
+        else:
+            earliest_month = model_data['dispatchmonth'].min()
+            val = model_data.loc[
+                model_data['dispatchmonth'] == earliest_month,
+                'cost_per_unit'
+            ].mean()
+    
+    # Fill roll_mean, std, pricelag, ema6 with same val (std will be 0)
+    row['roll_mean'] = val
+    row['std'] = 0
+    row['pricelag'] = val
+    row['ema6'] = val
+    # pctchange could be NaN for first month
+    row['pctchange'] = np.nan
+    
+    return row
+
+# Apply only to Case 1 rows
+combined.loc[case1_mask] = combined.loc[case1_mask].apply(fill_first_month, axis=1)
+
