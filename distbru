@@ -1,0 +1,17 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Check the distribution of actual values
+print(f"Train actual - Min: {y_train.min()}, Max: {y_train.max()}, Mean: {y_train.mean()}")
+print(f"Test actual - Min: {y_test.min()}, Max: {y_test.max()}, Mean: {y_test.mean()}")
+
+# Plot distributions
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 2, 1)
+plt.hist(y_train, bins=30, alpha=0.7, label='Train')
+plt.title('Training Data Distribution')
+plt.subplot(1, 2, 2)
+plt.hist(y_test, bins=30, alpha=0.7, label='Test')
+plt.title('Test Data Distribution')
+plt.show()
+ 
