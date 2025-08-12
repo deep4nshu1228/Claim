@@ -38,4 +38,79 @@ df['trend_slope'] = ((df['lag_1'] - df['lag_2']) + (df['lag_2'] - df['lag_3'])) 
 df['time_index'] = range(1, len(df) + 1)
 
 print(df)
+
+
+
+
+
+
+
+
+
+
+# Create datetime index
+df['date'] = pd.to_datetime(df[['dispatch_year', 'dispatch_month']].assign(day=1))
+df = df.set_index('date').sort_index()
+
+# Encode categorical features
+from sklearn.preprocessing import LabelEncoder
+label_encoders = {}
+for col in ['plant', 'model']:
+    le = LabelEncoder()
+    df[col + '_encoded'] = le.fit_transform(df[col])
+    label_encoders[col] = le
+
+# Calculate age in months
+df['age_months'] = (df['warranty_year'] - df['dispatch_year']) * 12 + \
+                   (df['warranty_month'] - df['dispatch_month'])
+
+# Add derived seasonal feature
+df['dispatch_quarter'] = (df['dispatch_month'] - 1) // 3 + 1
+ 
+
+
+
+
+
+
+train = df[df.index.year <= 2024]
+test = df[df.index.year == 2025]
+
+endog_train = train['cost']
+exog_features = ['plant_encoded', 'model_encoded', 'warranty_month', 
+                'warranty_year', 'age_months', 'dispatch_quarter']
+exog_train = train[exog_features]
+
+endog_test = test['cost']
+exog_test = test[exog_features]
+
+
+
+
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+model = SARIMAX(endog_train,
+                exog=exog_train,
+                order=(1,1,1),
+                seasonal_order=(1,1,1,12))
+
+results = model.fit(disp=False)
+print(results.summary())
+
+
+
+
+forecast = results.forecast(steps=len(test), exog=exog_test)
+
+# Add forecast into dataframe
+test['predicted_cost'] = forecast
+
+# Evaluate performance
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+mae = mean_absolute_error(endog_test, forecast)
+rmse = mean_squared_error(endog_test, forecast, squared=False)
+
+print(f"MAE: {mae:.2f}, RMSE: {rmse:.2f}")
+ 
  
