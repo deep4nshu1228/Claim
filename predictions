@@ -345,3 +345,86 @@ def generate_forecast_summary(forecast_results):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+def attach_features_to_grid_no_leakage(pred_grid, master_df, forecast_month):
+    """
+    Attach rolling features using age-shifted approach to avoid leakage
+    """
+    if pred_grid.empty:
+        return pred_grid
+    
+    print(f"Attaching features for {len(pred_grid)} prediction records (no-leakage)...")
+    
+    forecast_period = pd.Period(forecast_month, freq='M')
+    previous_month = forecast_period - 1
+    
+    # Get features from previous month only
+    hist_prev_month = master_df[master_df['warranty_month'] == previous_month].copy()
+    
+    if hist_prev_month.empty:
+        print(f"  ⚠️  No feature data from {previous_month}, using latest available")
+        # Fallback: use latest available data
+        hist_prev_month = (
+            master_df.sort_values(['plant', 'model', 'dispatch_month', 'warranty_month'])
+            .groupby(['plant', 'model', 'dispatch_month'])
+            .last()
+            .reset_index()
+        )
+    
+    # Key step: Shift age by +1 to align with forecast month
+    feature_data = hist_prev_month[['plant', 'model', 'dispatch_month', 'age'] + FEATURE_COLS].copy()
+    feature_data['age'] = feature_data['age'] + 1  # Age shift trick
+    
+    # Merge with prediction grid
+    pred_grid = pred_grid.merge(
+        feature_data,
+        on=['plant', 'model', 'dispatch_month', 'age'],
+        how='left'
+    )
+    
+    # Handle missing features with same logic as before
+    nan_mask = pred_grid[FEATURE_COLS].isnull().any(axis=1)
+    
+    if nan_mask.sum() > 0:
+        print(f"Found {nan_mask.sum()} rows with missing features, applying fallback logic...")
+        
+        # Forward-fill within cohorts
+        pred_grid[FEATURE_COLS] = (
+            pred_grid.groupby(['plant', 'model', 'dispatch_month'])[FEATURE_COLS]
+            .ffill()
+            .bfill()
+        )
+        
+        # Final fallback: use medians
+        for col in FEATURE_COLS:
+            if pred_grid[col].isnull().any():
+                median_val = pred_grid[col].median()
+                pred_grid[col] = pred_grid[col].fillna(median_val if not pd.isna(median_val) else 0)
+    
+    # Add calendar features
+    pred_grid['dispatch_month_num'] = pred_grid['dispatch_month'].astype(int)
+    
+    # Check for remaining NaN values
+    remaining_nans = pred_grid[FEATURE_COLS].isnull().sum().sum()
+    if remaining_nans > 0:
+        print(f"⚠️  Warning: {remaining_nans} NaN values still remain in features")
+    else:
+        print("✅ All features successfully attached (no-leakage)")
+    
+    return pred_grid
+
+
+
+
