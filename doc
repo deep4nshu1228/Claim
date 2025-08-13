@@ -1,51 +1,36 @@
+Training Methodology:
+
+To ensure accurate and leakage-free forecasts, the model training followed a walk-forward validation approach:
+
+Cohort-Based Forecasting:
+
+Data was structured by (dispatch_month, vehicle_age) so that each cohort (dispatch month) could be tracked across its lifecycle (ages 1–60).
+
+Walk-Forward Validation:
+
+For forecasting a given month M, the model was trained only on data available prior to M.
+
+This prevents the model from using any future information, maintaining real-world forecasting conditions.
+
+Sequential Horizon Forecasting:
+
+Forecasts were generated month-by-month for each vehicle age.
+
+For long horizons (up to 60 months ahead), predictions from earlier steps were fed into later steps, with error correction applied for drift mitigation.
+
+Feature Availability Control:
+
+All rolling statistics, lags, and EMAs were calculated only up to M-1 for month M’s prediction.
+
+This ensured the strict temporal integrity of features.
+
+Hyperparameter Tuning:
+
+Grid search and cross-validation were applied within the walk-forward framework to optimize model parameters for XGBoost and LightGBM.
 
 
-5. Modeling Approaches
-The forecasting solution was implemented using machine learning regression models, with a focus on capturing both seasonal patterns and age-based lifecycle effects in warranty costs.
 
-Models Used:
-XGBoost Regressor
 
-LightGBM Regressor
-
-These models were selected due to their ability to handle:
-
-Non-linear relationships.
-
-Mixed feature types (categorical, continuous, cyclical).
-
-Large datasets with high dimensionality.
-
-Features Utilized in Training:
-Temporal (Dispatch-related):
-
-dispatch_month_sin and dispatch_month_cos → Cyclical encoding of the dispatch month to represent seasonality.
-
-Temporal (Warranty-related):
-
-warranty_month_sin and warranty_month_cos → Cyclical encoding of warranty claim month to capture seasonal claim patterns.
-
-Lifecycle Attributes:
-
-vehicle_age → Number of months since dispatch (1 to 60).
-
-Categorical Identifiers (Encoded):
-
-model → Encoded vehicle model or model category.
-
-plant → Encoded manufacturing plant.
-
-Historical Cost Trends:
-
-cost_lag → Warranty cost from the previous month (M-1).
-
-rolling_mean → Mean warranty cost over the preceding n months before M.
-
-rolling_std_dev → Standard deviation over the preceding n months before M.
-
-ema → Exponential moving average of warranty costs up to M-1.
-
-All temporal features were engineered strictly from historical data up to M-1 to avoid data leakage.
 
 6. Challenges Faced & Solutions
 Challenge	Description	Solution
