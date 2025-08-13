@@ -1,0 +1,193 @@
+Warranty Cost Forecasting Model – Detailed Project Report
+1. Introduction
+Project Objective:
+The primary goal of this project was to build a forecasting model capable of predicting warranty costs for vehicles over a 60-month horizon based on their dispatch month, model, plant, and other relevant attributes. The focus was to provide accurate and granular estimates that can be used for financial provisioning and strategic planning.
+
+Business Motivation:
+Warranty costs represent a significant liability for the business. Accurately predicting these costs helps:
+
+Allocate sufficient financial reserves.
+
+Improve budgeting and cash flow management.
+
+Optimize manufacturing and after-sales strategies by identifying high-cost segments.
+
+Enhance decision-making on product quality improvements.
+
+2. Data Overview
+Data Sources:
+The data was sourced from multiple systems, primarily:
+
+Dispatch Data – Containing information on vehicle dispatch date, model, plant, and quantity.
+
+Warranty Claim Data – Recording claim dates, associated costs, claim categories, and other claim-related details.
+
+Key Fields:
+
+Field Name	Description	Example Value
+dispatch_month	Month vehicle was dispatched (YYYY-MM)	2021-06
+warranty_month	Month of warranty claim (YYYY-MM)	2022-08
+model	Vehicle model code/name	ABC123
+plant	Manufacturing plant identifier	Plant01
+volume	Number of vehicles dispatched in that month	450
+warranty_cost	Cost of warranty claims in that month	1,200,000
+
+Data Size & Coverage:
+
+Historical data spanning X years (YYYY to YYYY).
+
+~X million records across all models and plants.
+
+Covers both domestic and export markets (where applicable).
+
+3. Business Logic & Problem Framing
+Vehicles follow a vehicle age concept:
+
+Age 1: The month immediately after the dispatch month.
+
+Age N: N months after dispatch.
+
+For example, a vehicle dispatched in 2021-01 will have:
+
+Age 1 = 2021-02
+
+Age 12 = 2022-01
+
+Forecast Requirement:
+
+Predict warranty costs for each dispatch cohort for ages 1 to 60 months.
+
+Ensure forecasts are granular (model-plant level) and aggregatable for higher-level reporting.
+
+Problem Type:
+
+Cohort-based time series forecasting (each dispatch month is treated as a cohort).
+
+Prediction granularity: (dispatch_month, model, plant, age_month).
+
+4. Data Preprocessing
+Data Cleaning:
+
+Converted all date fields to datetime format and standardized to Period ('M') type for monthly aggregation.
+
+Removed duplicate entries and corrected mismatched plant/model codes.
+
+Validated claim records against dispatch records to remove unmatched entries.
+
+Filtering Rules:
+
+Excluded test/demo units from both dispatch and claim data.
+
+Removed extreme outliers where warranty cost > X times the monthly average (caused by exceptional cases such as mass recalls).
+
+Filtered to relevant model-plant combinations where historical data coverage was adequate.
+
+Feature Engineering:
+
+Created vehicle_age = (warranty_month - dispatch_month) in months.
+
+Aggregated warranty costs per (dispatch_month, model, plant, vehicle_age).
+
+Generated rolling averages and cumulative warranty costs per cohort to capture trends.
+
+Created per-vehicle warranty cost by dividing cost by dispatch volume.
+
+5. Modeling Approaches
+5.1 Baseline Approach (Historical Average)
+For each (model, plant, vehicle_age), the average historical warranty cost was calculated and used as a forecast for future cohorts.
+
+Advantage: Simple and interpretable.
+
+Limitation: Ignores trends, seasonality, and product changes.
+
+5.2 Machine Learning Models
+Models tested:
+
+XGBoost Regressor
+
+Random Forest Regressor
+
+LightGBM
+
+Features Used:
+
+Dispatch volume.
+
+Vehicle age.
+
+Model, Plant (encoded).
+
+Historical cost trends (lag features).
+
+Rolling averages over previous months.
+
+Training Methodology:
+
+Walk-forward validation: For each month, train the model on all prior data and forecast the next month, ensuring no future leakage.
+
+Separate model for each vehicle_age horizon or a single multi-horizon model tested.
+
+5.3 Time Series Models
+Considered models like ARIMA, Prophet for cohort-level series.
+
+These worked well for stable patterns but struggled with sparse higher-age data.
+
+6. Challenges Faced & Solutions
+Challenge	Description	Solution
+Data Leakage	Future claim data was unintentionally used in training.	Enforced strict temporal cutoff; ensured model only sees data available at prediction time.
+Error Accumulation	Long-horizon forecasts degraded in accuracy.	Introduced post-prediction adjustment factor (+5%) for months far in future.
+Sparse Data for Higher Ages	Few claims after 48+ months.	Used extrapolation and smoothing for older ages.
+Multiple Date Formats	Dispatch & claim data from different sources had mismatched formats.	Standardized all date formats to YYYY-MM Period type.
+
+7. Filters & Business Rules
+Exclude vehicles with dispatch volume < X for a month (to avoid unstable cost per vehicle).
+
+Map plant and model codes consistently across historical changes.
+
+Apply cost caps to avoid influence from exceptional large claims.
+
+8. Evaluation Metrics & Results
+Metrics Used:
+
+MAPE (Mean Absolute Percentage Error) for percentage-based accuracy.
+
+R² Score for goodness of fit.
+
+Performance Summary:
+
+Dataset	MAPE	R²
+Train	8.9%	0.56
+Test	11.5%	0.56
+
+Interpretation:
+
+MAPE < 12% indicates strong accuracy for business forecasting needs.
+
+R² above 0.5 is reasonable given variability in warranty claims.
+
+9. Model Improvements Over Time
+Added seasonality handling for claim peaks.
+
+Developed plant-specific models instead of global model for better granularity.
+
+Applied SHAP analysis to understand feature contributions (vehicle age, dispatch volume, model type were most influential).
+
+Introduced long-horizon correction factor for stability.
+
+10. Final Forecast Delivery
+Forecast Horizon:
+
+60 months from latest dispatch cohort in dataset.
+
+Output Format:
+
+Excel file with columns: dispatch_month, model, plant, age_month, forecast_cost.
+
+Pivot-table ready for finance and planning teams.
+
+11. Future Enhancements
+Incorporate macroeconomic & inflation factors into cost projections.
+
+Use NeuralProphet or deep learning for better seasonality and trend modeling.
+
+Automate model retraining and reporting via CI/CD pipeline and cloud deployment.
