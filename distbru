@@ -227,4 +227,44 @@ future_hybrid_forecast = future_base + future_resid_forecast.values
 
 print("Future hybrid forecast:")
 print(future_hybrid_forecast)
+
+
+
+
+
+
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X)
+
+
+
+# Map each one-hot column to its base variable
+group_map = {}
+for col in X.columns:
+    base_name = col.split('_')[0]  # before first underscore
+    group_map[col] = base_name
+
+
+
+# Mean absolute SHAP value per column
+shap_importance = pd.DataFrame({
+    'feature': X.columns,
+    'shap_importance': np.abs(shap_values).mean(axis=0)
+})
+
+# Group by the original variable
+grouped_importance = shap_importance.groupby(shap_importance['feature'].map(group_map))['shap_importance'].sum()
+
+# Sort descending
+grouped_importance = grouped_importance.sort_values(ascending=False)
+print(grouped_importance)
+
+
+import matplotlib.pyplot as plt
+
+grouped_importance.plot(kind='bar')
+plt.ylabel("Total SHAP Importance")
+plt.title("Grouped SHAP Importance")
+plt.show()
+
  
