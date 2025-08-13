@@ -1,43 +1,54 @@
-Training Methodology:
+1. Error Accumulation in Long-Horizon Forecasting
+Description:
+When generating forecasts for up to 60 months ahead, prediction errors from earlier months would compound in later months. For example, if the model slightly overestimated costs in month 1, this bias would carry forward and magnify in months 2, 3, and beyond.
 
-To ensure accurate and leakage-free forecasts, the model training followed a walk-forward validation approach:
+Impact:
+This drift reduced accuracy for long-term forecasts, making the later months less reliable.
 
-Cohort-Based Forecasting:
+Mitigation:
+To limit the propagation of errors, the model was retrained after every six iterations (forecast steps). This ensured that predictions remained grounded in the most recent observed data before proceeding further.
 
-Data was structured by (dispatch_month, vehicle_age) so that each cohort (dispatch month) could be tracked across its lifecycle (ages 1–60).
+2. Data Leakage in Real-Time Forecasting
+Description:
+In a live forecasting scenario, it is crucial that the model only uses historical data available up to the month before (M-1) the forecast month (M).
 
-Walk-Forward Validation:
+Impact:
+If the model had access to M or later data during training, the results would appear artificially accurate in back-testing but fail in real-world forecasting.
 
-For forecasting a given month M, the model was trained only on data available prior to M.
+Mitigation:
+Strict rules were implemented so all features — including rolling statistics, lags, and EMAs — were calculated only from M-1 and earlier months, preventing any inadvertent leakage.
 
-This prevents the model from using any future information, maintaining real-world forecasting conditions.
+3. Noisy Models Due to VIDA Segment
+Description:
+VIDA models were new launches and had not yet completed a full 60-month age cycle. Their warranty patterns were inconsistent and showed high month-to-month volatility due to early-life claim fluctuations.
 
-Sequential Horizon Forecasting:
+Impact:
+Including VIDA data introduced noise into the model, degrading its performance for other models and increasing forecast variance.
 
-Forecasts were generated month-by-month for each vehicle age.
+Mitigation:
+VIDA models were excluded from the training dataset until sufficient historical stability was available for them.
 
-For long horizons (up to 60 months ahead), predictions from earlier steps were fed into later steps, with error correction applied for drift mitigation.
+4. Missing Warranty Data for Certain Dispatch Months
+Description:
+Some dispatch months had no recorded warranty claims despite having vehicles in operation. For example, Splendor units dispatched in 09-2020 had no recorded claims in the warranty dataset.
 
-Feature Availability Control:
+Impact:
+Although these vehicles had valid ages that fell within the forecast horizon, the absence of claim history meant the model still assigned them a predicted cost based on patterns from similar cohorts — potentially inflating forecasts for these dispatch months.
 
-All rolling statistics, lags, and EMAs were calculated only up to M-1 for month M’s prediction.
+Mitigation:
+Identified and flagged such cohorts in the preprocessing stage to track their contribution separately during aggregation and reporting.
 
-This ensured the strict temporal integrity of features.
+5. Volume Drop in Recent Dispatch Months
+Description:
+Dispatch volumes for the most recent months before the forecast start date showed a notable decline. Since warranty costs are strongly volume-driven, this trend carried forward into the forecast, reducing predicted costs in aggregate outputs.
 
-Hyperparameter Tuning:
+Impact:
+While mathematically correct, this drop could be misinterpreted by stakeholders as an improvement in warranty performance rather than a volume-driven effect.
 
-Grid search and cross-validation were applied within the walk-forward framework to optimize model parameters for XGBoost and LightGBM.
+Mitigation:
+Communicated this behavior clearly in forecast interpretation notes, emphasizing that cost reductions were partly due to lower recent dispatch volumes rather than purely improved quality or performance.
 
 
-
-
-
-6. Challenges Faced & Solutions
-Challenge	Description	Solution
-Data Leakage	Future claim data was unintentionally used in training.	Enforced strict temporal cutoff; ensured model only sees data available at prediction time.
-Error Accumulation	Long-horizon forecasts degraded in accuracy.	Introduced post-prediction adjustment factor (+5%) for months far in future.
-Sparse Data for Higher Ages	Few claims after 48+ months.	Used extrapolation and smoothing for older ages.
-Multiple Date Formats	Dispatch & claim data from different sources had mismatched formats.	Standardized all date formats to YYYY-MM Period type.
 
 7. Filters & Business Rules
 Exclude vehicles with dispatch volume < X for a month (to avoid unstable cost per vehicle).
