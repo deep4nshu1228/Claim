@@ -103,13 +103,25 @@ Verified that each warranty claim could be linked to a valid dispatch record.
 Removed duplicates and corrected mismatched plant/model codes.
 
 Filtering Rules:
+To ensure model accuracy and relevance, the following filters were applied to the dataset:
 
-Excluded test/demo units from both dispatch and claim data.
+Exclusion of Low-Volume Dispatches:
 
-Removed extreme outliers where warranty cost > X times the monthly average (caused by exceptional cases such as mass recalls).
+Removed (model, plant) combinations with dispatch volume below a defined threshold to avoid unstable per-vehicle cost estimates.
 
-Filtered to relevant model-plant combinations where historical data coverage was adequate.
+Relevant Model-Plant Combinations:
 
+Retained only those combinations with sufficient historical data coverage.
+
+Excluded VIDA models from model training because:
+
+They are new launches and have not yet completed a full 60-month vehicle age cycle.
+
+Their early-stage warranty claim patterns are highly volatile and introduce noise into the training process.
+
+Plant-Model Mapping Consistency:
+
+Ensured that each (plant, model) pairing reflected valid historical associations.
 Feature Engineering:
 
 Created vehicle_age = (warranty_month - dispatch_month) in months.
