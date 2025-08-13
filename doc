@@ -122,15 +122,36 @@ Their early-stage warranty claim patterns are highly volatile and introduce nois
 Plant-Model Mapping Consistency:
 
 Ensured that each (plant, model) pairing reflected valid historical associations.
+
+
 Feature Engineering:
+Following the cleaning and filtering steps, additional derived features were created to represent vehicle lifecycle stages and historical cost behavior.
 
-Created vehicle_age = (warranty_month - dispatch_month) in months.
+Vehicle Age Calculation:
 
-Aggregated warranty costs per (dispatch_month, model, plant, vehicle_age).
+Calculated vehicle_age as the difference (in months) between dispatch_month and warranty_month.
 
-Generated rolling averages and cumulative warranty costs per cohort to capture trends.
+Age Range Restriction:
 
-Created per-vehicle warranty cost by dividing cost by dispatch volume.
+Retained only records where vehicle_age ∈ [1, 60], matching the warranty period under consideration.
+
+Temporal Short-Term Signals (Strictly Historical):
+
+For each (dispatch_month, model, plant, vehicle_age) combination, created time-dependent features using only data available up to M-1 month when forecasting for month M.
+
+Features included:
+
+Rolling Mean – Average warranty cost over the last n months before M.
+
+Rolling Standard Deviation – Variation in warranty cost over the last n months before M.
+
+Exponential Moving Average (EMA) – Weighted historical average emphasizing recent months, computed up to M-1.
+
+Cost Lag (M-1) – Warranty cost exactly one month before M.
+
+Cost Change from M-1 – Percentage difference between M-1 and M-2 months.
+
+This strict backward-looking design ensures no data leakage from the month being predicted or future periods.
 
 5. Modeling Approaches
 5.1 Baseline Approach (Historical Average)
