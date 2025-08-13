@@ -76,12 +76,31 @@ Prediction granularity: (dispatch_month, model, plant, age_month).
 
 4. Data Preprocessing
 Data Cleaning:
+The initial step involved standardizing and consolidating the data to ensure consistency across sources. Key actions included:
 
-Converted all date fields to datetime format and standardized to Period ('M') type for monthly aggregation.
+Model Grouping:
 
-Removed duplicate entries and corrected mismatched plant/model codes.
+Clubbed individual vehicle models into broader model categories based on business-defined groupings.
 
-Validated claim records against dispatch records to remove unmatched entries.
+For example, models X, X1, and X2 were consolidated into the "XYZ" category.
+
+Model Code Mapping:
+
+Created a mapping between model codes and their descriptive model names/categories to maintain consistency across datasets and reporting.
+
+Plant Filtering:
+
+Removed records associated with plants that are no longer operational to avoid irrelevant historical data influencing the model.
+
+Date Standardization:
+
+Converted all dispatch and warranty dates to datetime format and standardized to YYYY-MM (Period ‘M’) for monthly aggregation.
+
+Data Validation:
+
+Verified that each warranty claim could be linked to a valid dispatch record.
+
+Removed duplicates and corrected mismatched plant/model codes.
 
 Filtering Rules:
 
