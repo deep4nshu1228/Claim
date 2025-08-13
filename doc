@@ -1,62 +1,10 @@
-7. Evaluation Metrics & Results
-1. Evaluation Approach
-The model was evaluated using both back-testing on historical data and forward simulation to mimic the real-time forecasting process. Metrics were computed at the monthly level and aggregated for each forecast horizon.
+8. Model Improvement Over Time
+Plan to incorporate longer-term historical trends (beyond current 60-month window) to enhance stability and robustness of forecasts.
 
-2. Metrics Used
-Mean Absolute Percentage Error (MAPE):
-Selected as the primary evaluation metric to capture the relative accuracy of forecasts across different vehicle models and warranty cost scales.
+As additional dispatch and warranty records flow in, the model will benefit from richer historical actuals for training.
 
-R² Score:
-Used as a secondary metric to assess how well the model explained the variance in actual costs.
+Over time, increased data volume will naturally smooth out volatility and noise in certain model categories.
 
-Directional Accuracy:
-Monitored to ensure the model correctly predicted upward or downward trends in costs, even if magnitude errors existed.
+Maintain an ongoing model improvement cycle with periodic retraining, hyperparameter tuning, and feature enhancements.
 
-3. Results Overview
-Across most forecast horizons, average percentage error (MAPE) ranged between 10% and 15%.
-
-Performance was strongest in the short to mid-term horizons (up to 12 months), where error accumulation was minimal.
-
-Longer horizons (24+ months) saw a gradual rise in MAPE due to compounded forecast errors — a direct result of the sequential prediction process.
-
-Retraining after every six iterations significantly reduced the magnitude of error accumulation, improving stability in the 13–36 month range.
-
-4. Effect of Error Accumulation
-In a rolling forecast setup, each month’s prediction is based on the previous month’s predicted values, not actuals.
-
-Small deviations in early months — even as low as ±2% — compounded over time, leading to an additional 3–5% increase in error in later forecast horizons.
-
-Without retraining checkpoints, errors in the final 12 months of the 60-month forecast could exceed 20% MAPE; with the retraining strategy, this was brought down to the 10–15% range.
-
-This highlighted the importance of iterative correction in long-horizon warranty cost forecasting.
-
-
-
-
-
-9. Model Improvements Over Time
-Added seasonality handling for claim peaks.
-
-Developed plant-specific models instead of global model for better granularity.
-
-Applied SHAP analysis to understand feature contributions (vehicle age, dispatch volume, model type were most influential).
-
-Introduced long-horizon correction factor for stability.
-
-10. Final Forecast Delivery
-Forecast Horizon:
-
-60 months from latest dispatch cohort in dataset.
-
-Output Format:
-
-Excel file with columns: dispatch_month, model, plant, age_month, forecast_cost.
-
-Pivot-table ready for finance and planning teams.
-
-11. Future Enhancements
-Incorporate macroeconomic & inflation factors into cost projections.
-
-Use NeuralProphet or deep learning for better seasonality and trend modeling.
-
-Automate model retraining and reporting via CI/CD pipeline and cloud deployment.
+Integrate more granular warranty unit-level details to improve the accuracy and explainability of cost estimations.
