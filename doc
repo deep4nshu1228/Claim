@@ -1,80 +1,38 @@
-1. Error Accumulation in Long-Horizon Forecasting
-Description:
-When generating forecasts for up to 60 months ahead, prediction errors from earlier months would compound in later months. For example, if the model slightly overestimated costs in month 1, this bias would carry forward and magnify in months 2, 3, and beyond.
+7. Evaluation Metrics & Results
+1. Evaluation Approach
+The model was evaluated using both back-testing on historical data and forward simulation to mimic the real-time forecasting process. Metrics were computed at the monthly level and aggregated for each forecast horizon.
 
-Impact:
-This drift reduced accuracy for long-term forecasts, making the later months less reliable.
+2. Metrics Used
+Mean Absolute Percentage Error (MAPE):
+Selected as the primary evaluation metric to capture the relative accuracy of forecasts across different vehicle models and warranty cost scales.
 
-Mitigation:
-To limit the propagation of errors, the model was retrained after every six iterations (forecast steps). This ensured that predictions remained grounded in the most recent observed data before proceeding further.
+R² Score:
+Used as a secondary metric to assess how well the model explained the variance in actual costs.
 
-2. Data Leakage in Real-Time Forecasting
-Description:
-In a live forecasting scenario, it is crucial that the model only uses historical data available up to the month before (M-1) the forecast month (M).
+Directional Accuracy:
+Monitored to ensure the model correctly predicted upward or downward trends in costs, even if magnitude errors existed.
 
-Impact:
-If the model had access to M or later data during training, the results would appear artificially accurate in back-testing but fail in real-world forecasting.
+3. Results Overview
+Across most forecast horizons, average percentage error (MAPE) ranged between 10% and 15%.
 
-Mitigation:
-Strict rules were implemented so all features — including rolling statistics, lags, and EMAs — were calculated only from M-1 and earlier months, preventing any inadvertent leakage.
+Performance was strongest in the short to mid-term horizons (up to 12 months), where error accumulation was minimal.
 
-3. Noisy Models Due to VIDA Segment
-Description:
-VIDA models were new launches and had not yet completed a full 60-month age cycle. Their warranty patterns were inconsistent and showed high month-to-month volatility due to early-life claim fluctuations.
+Longer horizons (24+ months) saw a gradual rise in MAPE due to compounded forecast errors — a direct result of the sequential prediction process.
 
-Impact:
-Including VIDA data introduced noise into the model, degrading its performance for other models and increasing forecast variance.
+Retraining after every six iterations significantly reduced the magnitude of error accumulation, improving stability in the 13–36 month range.
 
-Mitigation:
-VIDA models were excluded from the training dataset until sufficient historical stability was available for them.
+4. Effect of Error Accumulation
+In a rolling forecast setup, each month’s prediction is based on the previous month’s predicted values, not actuals.
 
-4. Missing Warranty Data for Certain Dispatch Months
-Description:
-Some dispatch months had no recorded warranty claims despite having vehicles in operation. For example, Splendor units dispatched in 09-2020 had no recorded claims in the warranty dataset.
+Small deviations in early months — even as low as ±2% — compounded over time, leading to an additional 3–5% increase in error in later forecast horizons.
 
-Impact:
-Although these vehicles had valid ages that fell within the forecast horizon, the absence of claim history meant the model still assigned them a predicted cost based on patterns from similar cohorts — potentially inflating forecasts for these dispatch months.
+Without retraining checkpoints, errors in the final 12 months of the 60-month forecast could exceed 20% MAPE; with the retraining strategy, this was brought down to the 10–15% range.
 
-Mitigation:
-Identified and flagged such cohorts in the preprocessing stage to track their contribution separately during aggregation and reporting.
-
-5. Volume Drop in Recent Dispatch Months
-Description:
-Dispatch volumes for the most recent months before the forecast start date showed a notable decline. Since warranty costs are strongly volume-driven, this trend carried forward into the forecast, reducing predicted costs in aggregate outputs.
-
-Impact:
-While mathematically correct, this drop could be misinterpreted by stakeholders as an improvement in warranty performance rather than a volume-driven effect.
-
-Mitigation:
-Communicated this behavior clearly in forecast interpretation notes, emphasizing that cost reductions were partly due to lower recent dispatch volumes rather than purely improved quality or performance.
+This highlighted the importance of iterative correction in long-horizon warranty cost forecasting.
 
 
 
-7. Filters & Business Rules
-Exclude vehicles with dispatch volume < X for a month (to avoid unstable cost per vehicle).
 
-Map plant and model codes consistently across historical changes.
-
-Apply cost caps to avoid influence from exceptional large claims.
-
-8. Evaluation Metrics & Results
-Metrics Used:
-
-MAPE (Mean Absolute Percentage Error) for percentage-based accuracy.
-
-R² Score for goodness of fit.
-
-Performance Summary:
-
-Dataset	MAPE	R²
-Train	8.9%	0.56
-Test	11.5%	0.56
-
-Interpretation:
-
-MAPE < 12% indicates strong accuracy for business forecasting needs.
-
-R² above 0.5 is reasonable given variability in warranty claims.
 
 9. Model Improvements Over Time
 Added seasonality handling for claim peaks.
