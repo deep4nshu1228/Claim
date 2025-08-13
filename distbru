@@ -142,4 +142,89 @@ y_hat_base_future = base.predict(X_future)
 resid_forecast = arima_resid.forecast(steps=len(X_future))
 y_hat_hybrid = y_hat_base_future + resid_forecast.values
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+train_df['base_pred'] = base_model.predict(X_train)
+
+# -----------------------
+# 3) Fit ARIMA on residuals (Univariate on Price residual only)
+# -----------------------
+train_df['residual'] = train_df[target_col] - train_df['base_pred']
+
+# Order can be tuned using AIC/BIC or pmdarima.auto_arima
+arima_model = ARIMA(train_df['residual'], order=(1,0,1))
+arima_res   = arima_model.fit()
+
+# -----------------------
+# 4) Forecast future
+# -----------------------
+# Base forecasts for test set
+test_df = test_df.copy()
+test_df['base_pred'] = base_model.predict(X_test)
+
+# Residual forecasts for same horizon
+resid_forecast = arima_res.forecast(steps=len(test_df))
+
+# Hybrid prediction = base + residual
+test_df['hybrid_pred'] = test_df['base_pred'] + resid_forecast.values
+
+# -----------------------
+# 5) Evaluate
+# -----------------------
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+mae = mean_absolute_error(y_test, test_df['hybrid_pred'])
+rmse = np.sqrt(mean_squared_error(y_test, test_df['hybrid_pred']))
+
+print(f"Hybrid MAE: {mae:.2f}")
+print(f"Hybrid RMSE: {rmse:.2f}")
+
+# -----------------------
+# 6) Future forecast beyond known data
+# -----------------------
+# Suppose you have future_df with same features but no Price yet
+# - Compute base prediction
+# - Forecast ARIMA residuals for that horizon
+# - Sum them for final forecast
+
+future_df = future_df.sort_index()
+future_base = base_model.predict(future_df[feature_cols])
+future_resid_forecast = arima_res.forecast(steps=len(future_df))
+future_hybrid_forecast = future_base + future_resid_forecast.values
+
+print("Future hybrid forecast:")
+print(future_hybrid_forecast)
  
