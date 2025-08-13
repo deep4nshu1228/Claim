@@ -113,4 +113,33 @@ rmse = mean_squared_error(endog_test, forecast, squared=False)
 
 print(f"MAE: {mae:.2f}, RMSE: {rmse:.2f}")
  
+
+
+
+
+
+
+from xgboost import XGBRegressor
+from statsmodels.tsa.arima.model import ARIMA
+
+# 1) Base model
+feature_cols = ['lag1','lag7','ma7','ma28','dow','month','promo','...']
+X_train, y_train = df[feature_cols], df['y']
+base = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=6)
+base.fit(X_train, y_train)
+
+# 2) Residuals
+df['y_hat_base'] = base.predict(X_train)
+df['resid'] = df['y'] - df['y_hat_base']
+
+# 3) ARIMA on residuals (tune p,d,q)
+arima_resid = ARIMA(df['resid'], order=(1,0,1)).fit()
+
+# 4) Forecast
+# Prepare future feature dataframe with same columns
+X_future = future_df[feature_cols]
+y_hat_base_future = base.predict(X_future)
+resid_forecast = arima_resid.forecast(steps=len(X_future))
+y_hat_hybrid = y_hat_base_future + resid_forecast.values
+
  
