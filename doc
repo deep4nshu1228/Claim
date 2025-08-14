@@ -14,3 +14,9 @@ matrix = df.pivot_table(
     aggfunc='sum',                 # Or 'mean' if preferred
     fill_value=0
 )
+
+
+# Create Excel writer object
+with pd.ExcelWriter('warranty_cost_matrix.xlsx', engine='xlsxwriter') as writer:
+    matrix1.to_excel(writer, sheet_name='Matrix1')
+    matrix2.to_excel(writer, sheet_name='Matrix2')
