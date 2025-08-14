@@ -1,28 +1,16 @@
-9. Final Forecast Delivery
-The final warranty cost forecasts are generated for the next 60 months (5 years) at the model–plant–age level, aggregating results to provide both granular and consolidated cost projections. The delivery process involves the following steps:
+import pandas as pd
 
-Forecast Generation – Using the trained XGBoost and LightGBM models, predictions are made month-by-month for all eligible dispatch months, ensuring only M-1 and backward historical features are used to prevent leakage.
+# Example dataframe
+# df = pd.DataFrame({'dispatch_month': [...], 'warranty_month': [...], 'warranty_cost': [...]})
 
-Aggregation of Results – Individual forecasts at the vehicle model and plant level are aggregated to provide:
+# Convert to datetime
+df['dispatch_month'] = pd.to_datetime(df['dispatch_month'])
+df['warranty_month'] = pd.to_datetime(df['warranty_month'])
 
-Total projected warranty cost for the entire business.
-
-Breakdowns by plant, model category, and vehicle age for detailed analysis.
-
-Incorporation of Business Rules – Filters such as exclusion of VIDA models and non-operational plants are applied during final output generation to align results with agreed business logic.
-
-Error Adjustment Mechanism – Since multi-step forecasting can lead to error accumulation, the delivery process incorporates mid-horizon recalibration by retraining after every 6 forecast iterations to maintain accuracy.
-
-Output Formatting – The forecast results are structured in a standardized format for easy interpretation:
-
-Tabular view for detailed internal analysis.
-
-Summary dashboards for management-level insights, highlighting cost trends, peak months, and model-specific contributions.
-
-Forecast Validation – Before final delivery, results are compared with recent historical trends to verify plausibility, with any major deviations being reviewed and discussed with stakeholders.
-
-Delivery & Reporting – The final validated forecasts are shared as both:
-
-Excel workbooks containing raw and aggregated data.
-
-Power BI dashboards for interactive exploration and scenario analysis.
+matrix = df.pivot_table(
+    index='dispatch_month',        # Rows: dispatch month
+    columns='vehicle_age',         # Columns: vehicle age
+    values='warranty_cost',        # Value to aggregate
+    aggfunc='sum',                 # Or 'mean' if preferred
+    fill_value=0
+)
