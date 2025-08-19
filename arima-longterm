@@ -85,50 +85,76 @@ df = df.merge(trend_df, on=['plant', 'model', 'dispatch_month'], how='left')
 
 
 
-
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-def fit_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add'):
+def safe_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add'):
     """
-    Fit Holt-Winters to ts and return in-sample fitted values as long-term trend.
-    ts: pd.Series indexed by monthly 'MS' frequency (e.g., WARRANTY_COST).
+    Robust Holt-Winters trend extractor for monthly series.
+    Handles short series, missing values, and disables seasonality when needed.
+    Returns pd.Series aligned to ts.index, name 'TREND_HW'.
     """
+    ts = ts.copy()
+
+    # Ensure monthly freq alignment
+    if ts.index.freqstr != 'MS':
+        ts = ts.asfreq('MS')
+
+    # If all missing or empty
     if len(ts) == 0 or ts.isna().all():
-        return pd.Series(index=ts.index, dtype=float)
+        return pd.Series(index=ts.index, dtype=float, name='TREND_HW')
 
-    ts_filled = ts.copy()
-    if ts_filled.isna().any():
-        ts_filled = ts_filled.ffill().bfill()
+    # Conservative fill for internal modeling
+    ts_filled = ts.ffill().bfill()
 
-    # Disable seasonality if too few points
-    use_seasonal = seasonal if len(ts_filled) >= 24 else None
+    n = len(ts_filled)
 
-    model = ExponentialSmoothing(
-        ts_filled,
-        trend=trend,
-        seasonal=use_seasonal,
-        seasonal_periods=seasonal_periods,
-        initialization_method='estimated'
-    )
-    fit = model.fit(optimized=True)
-    fitted = fit.fittedvalues
+    # Tiny series fallbacks
+    if n == 1:
+        out = pd.Series([ts_filled.iloc[0]], index=ts.index, name='TREND_HW')
+        return out
+    if n == 2:
+        val = ts_filled.mean()
+        out = pd.Series([val]*n, index=ts.index, name='TREND_HW')
+        return out
+    if n < 24:
+        use_seasonal = None
+    else:
+        use_seasonal = seasonal
+
+    try:
+        model = ExponentialSmoothing(
+            ts_filled,
+            trend=trend,
+            seasonal=use_seasonal,
+            seasonal_periods=seasonal_periods if use_seasonal else None,
+            initialization_method='estimated'
+        )
+        fit = model.fit(optimized=True)
+        fitted = fit.fittedvalues
+    except Exception:
+        # Final fallback: simple EMA
+        alpha = 0.3
+        fitted_vals = []
+        ema = ts_filled.iloc
+        for x in ts_filled:
+            ema = alpha*x + (1-alpha)*ema
+            fitted_vals.append(ema)
+        fitted = pd.Series(fitted_vals, index=ts.index)
+
     fitted.name = 'TREND_HW'
     return fitted
 
-# Aggregate monthly WARRANTY_COST per PLANT–BIKE_GROUPED–DISPATCH_MONTH
+# Build trend dataframe (PLANT, BIKE_GROUPED, DISPATCH_MONTH, WARRANTY_COST)
 agg = df.groupby(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])['WARRANTY_COST'].sum().reset_index()
 agg['DISPATCH_MONTH'] = pd.to_datetime(agg['DISPATCH_MONTH'])
 agg = agg.sort_values(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])
 
-# Build trend dataframe
 trend_frames = []
 for (plant, bike), g in agg.groupby(['PLANT','BIKE_GROUPED']):
     ts = g.set_index('DISPATCH_MONTH')['WARRANTY_COST'].asfreq('MS')
-    if ts.empty:
-        continue
-    trend = fit_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add')
+    trend = safe_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add')
     tmp = trend.reset_index()
     tmp['PLANT'] = plant
     tmp['BIKE_GROUPED'] = bike
@@ -138,8 +164,5 @@ trend_df = pd.concat(trend_frames, ignore_index=True) if trend_frames else pd.Da
     columns=['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW']
 )
 
-# Merge back to full df (replicates to all ages of the cohort)
 df = df.merge(trend_df, on=['PLANT','BIKE_GROUPED','DISPATCH_MONTH'], how='left')
-
-# Fill remaining NAs within each group (early/late edges)
 df['TREND_HW'] = df.groupby(['PLANT','BIKE_GROUPED'])['TREND_HW'].transform(lambda s: s.ffill().bfill())
