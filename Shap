@@ -30,3 +30,27 @@ grouped_importance = (
 )
 
 print(grouped_importance)
+
+
+
+
+import matplotlib.pyplot as plt
+
+# Assuming grouped_importance is the Series we created (with categorical clubbed)
+# Normalize to percentages
+grouped_importance_pct = 100 * grouped_importance / grouped_importance.sum()
+
+# Plot
+plt.figure(figsize=(10,6))
+grouped_importance_pct.plot(kind='bar')
+
+# Add labels
+for i, v in enumerate(grouped_importance_pct):
+    plt.text(i, v + 0.5, f"{v:.1f}%", ha='center')
+
+plt.title("Feature Importance (Grouped, % Contribution)")
+plt.ylabel("Percentage Importance")
+plt.xlabel("Features")
+plt.xticks(rotation=45, ha="right")
+plt.tight_layout()
+plt.show()
