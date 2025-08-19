@@ -1,75 +1,46 @@
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-from pmdarima import auto_arima
 
-def fit_arima_trend(ts):
-    """
-    Fit auto ARIMA or SARIMA to a given univariate time series and return the fitted trend component.
+# 1) Normalize your DISPATCH_MONTH to monthly period start datetime
+df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH']).dt.to_period('M').dt.to_timestamp()
+
+# 2) Aggregate warranty cost monthly per plant and bike group
+agg = df.groupby(['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'], as_index=False)['WARRANTY_COST'].sum()
+agg = agg.sort_values(['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'])
+
+def fit_simple_sarimax(ts):
+    # Fill missing months and backfill to deal with gaps
+    ts = ts.asfreq('MS').fillna(method='ffill').fillna(method='bfill')
     
-    ts: pd.Series indexed by dispatch_month (datetime or period), warranty cost aggregated for plant-model
+    # Fit SARIMAX with fixed orders (p,d,q)(P,D,Q,m) = (1,1,1)(0,1,1,12) 
+    model = SARIMAX(ts, order=(1,1,1), seasonal_order=(0,1,1,12),
+                    enforce_stationarity=False, enforce_invertibility=False)
+    fit = model.fit(disp=False)
     
-    Returns: pd.Series of fitted values aligned with ts.index
-    """
-    # Auto-fit seasonal ARIMA model (monthly seasonality: m=12)
-    # You can adjust seasonal=True/False based on data and m (period)
-    model = auto_arima(ts, seasonal=True, m=12, stepwise=True,
-                       suppress_warnings=True, error_action='ignore')
-    
-    # Fit SARIMAX with the chosen order (p,d,q) and seasonal_order (P,D,Q,m)
-    sarimax = SARIMAX(ts,
-                      order=model.order,
-                      seasonal_order=model.seasonal_order,
-                      enforce_stationarity=False,
-                      enforce_invertibility=False)
-    sarimax_fit = sarimax.fit(disp=False)
-    
-    # Extract fitted values (in-sample predictions) as trend approximation
-    fitted_trend = sarimax_fit.fittedvalues
-    return fitted_trend
+    # Return the in-sample fitted values as trend signal
+    return fit.fittedvalues.rename('TREND_SARIMAX')
 
-# Example usage:
-# Suppose df has columns: plant, model, dispatch_month (datetime), cost
+# 3) Fit per PLANT–BIKE_GROUPED group and collect trend
+trend_frames = []
+for (plant, bike), group in agg.groupby(['PLANT', 'BIKE_GROUPED']):
+    ts = group.set_index('DISPATCH_MONTH')['WARRANTY_COST']
+    trend = fit_simple_sarimax(ts)
+    trend_df = trend.reset_index()
+    trend_df['PLANT'] = plant
+    trend_df['BIKE_GROUPED'] = bike
+    trend_frames.append(trend_df)
 
-# Step 1: Aggregate cost by plant, model, dispatch_month
-agg = df.groupby(['plant', 'model', 'dispatch_month'])['cost'].sum().reset_index()
+trend_all = pd.concat(trend_frames, ignore_index=True)
 
-# Step 2: Ensure dispatch_month is datetime and sorted
-agg['dispatch_month'] = pd.to_datetime(agg['dispatch_month'])
-agg = agg.sort_values(['plant', 'model', 'dispatch_month'])
+# 4) Merge trend back to full dataframe
+df = df.merge(trend_all, on=['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'], how='left')
 
-# Step 3: Create a dataframe to store trend feature
-trend_features = []
+# 5) Fill any missing trend values by group forward/backward fill if needed
+df['TREND_SARIMAX'] = df.groupby(['PLANT', 'BIKE_GROUPED'])['TREND_SARIMAX'].transform(lambda x: x.ffill().bfill())
 
-# Step 4: Fit ARIMA/SARIMA per plant-model and extract trend
-for (plant, model), group in agg.groupby(['plant', 'model']):
-    # Set dispatch_month as index
-    ts = group.set_index('dispatch_month')['cost']
-    
-    # Fill missing months with NaN and then interpolate or fill forward/backward
-    ts = ts.asfreq('MS')  # MS = month start frequency
-    ts = ts.fillna(method='ffill').fillna(method='bfill')
-    
-    # Fit ARIMA and get trend
-    fitted_trend = fit_arima_trend(ts)
-    
-    # Store trend with plant, model, dispatch_month indexing
-    tmp = fitted_trend.reset_index()
-    tmp['plant'] = plant
-    tmp['model'] = model
-    tmp = tmp.rename(columns={'fittedvalues': 'trend_arima', 'cost': 'trend_arima'})
-    
-    trend_features.append(tmp[['plant', 'model', 'dispatch_month', 'trend_arima']])
+# Now use 'TREND_SARIMAX' as a new feature in your XGBoost model
 
-# Combine all trend features into one dataframe
-trend_df = pd.concat(trend_features, ignore_index=True)
-
-# Step 5: Merge trend feature back to original dataframe df on plant, model, dispatch_month
-df = df.merge(trend_df, on=['plant', 'model', 'dispatch_month'], how='left')
-
-# Now df has a new column 'trend_arima' with the long-term trend extracted by SARIMA
-
-# Use df['trend_arima'] as a feature in your XGBoost model
 
 
 
