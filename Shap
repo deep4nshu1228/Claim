@@ -1,0 +1,32 @@
+import shap
+import pandas as pd
+
+# Assuming you already have your trained XGBoost model `xgb_model`
+# and your training data X (after encoding)
+
+# Get SHAP values
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X)
+
+# Create feature importance dataframe
+importance_df = pd.DataFrame({
+    "feature": X.columns,
+    "importance": abs(shap_values).mean(axis=0)
+})
+
+# Function to map one-hot features back to original categorical
+def map_feature(f):
+    if "_" in f:  # assuming encoding is col_category
+        return f.split("_")[0]
+    return f
+
+importance_df["group"] = importance_df["feature"].apply(map_feature)
+
+# Aggregate importance by group
+grouped_importance = (
+    importance_df.groupby("group")["importance"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+print(grouped_importance)
