@@ -92,18 +92,18 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 def fit_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add'):
     """
-    Fit Holt-Winters to ts and return in-sample fitted values as a long-term trend proxy.
-    ts: pd.Series indexed by 'MS' freq (monthly), e.g., aggregated WARRANTY_COST.
+    Fit Holt-Winters to ts and return in-sample fitted values as long-term trend.
+    ts: pd.Series indexed by monthly 'MS' frequency (e.g., WARRANTY_COST).
     """
-    if ts.isna().all() or len(ts) == 0:
+    if len(ts) == 0 or ts.isna().all():
         return pd.Series(index=ts.index, dtype=float)
 
     ts_filled = ts.copy()
     if ts_filled.isna().any():
-        ts_filled = ts_filled.fillna(method='ffill').fillna(method='bfill')
+        ts_filled = ts_filled.ffill().bfill()
 
-    # Disable seasonality if series is too short
-    use_seasonal = seasonal if len(ts_filled) >= 2 * seasonal_periods else None
+    # Disable seasonality if too few points
+    use_seasonal = seasonal if len(ts_filled) >= 24 else None
 
     model = ExponentialSmoothing(
         ts_filled,
@@ -113,31 +113,33 @@ def fit_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add'):
         initialization_method='estimated'
     )
     fit = model.fit(optimized=True)
-    return fit.fittedvalues  # smoothed level+trend(+seasonal)
+    fitted = fit.fittedvalues
+    fitted.name = 'TREND_HW'
+    return fitted
 
-# Aggregate by PLANT, BIKE_GROUPED, DISPATCH_MONTH
-agg = df.groupby(['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'])['WARRANTY_COST'].sum().reset_index()
+# Aggregate monthly WARRANTY_COST per PLANT–BIKE_GROUPED–DISPATCH_MONTH
+agg = df.groupby(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])['WARRANTY_COST'].sum().reset_index()
 agg['DISPATCH_MONTH'] = pd.to_datetime(agg['DISPATCH_MONTH'])
-agg = agg.sort_values(['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'])
+agg = agg.sort_values(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])
 
+# Build trend dataframe
 trend_frames = []
-for (plant, bike), g in agg.groupby(['PLANT', 'BIKE_GROUPED']):
+for (plant, bike), g in agg.groupby(['PLANT','BIKE_GROUPED']):
     ts = g.set_index('DISPATCH_MONTH')['WARRANTY_COST'].asfreq('MS')
     if ts.empty:
         continue
     trend = fit_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add')
-    tmp = trend.rename('TREND_HW').reset_index()
+    tmp = trend.reset_index()
     tmp['PLANT'] = plant
     tmp['BIKE_GROUPED'] = bike
-    trend_frames.append(tmp[['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH', 'TREND_HW']])
+    trend_frames.append(tmp[['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW']])
 
-trend_df = (pd.concat(trend_frames, ignore_index=True)
-            if trend_frames else
-            pd.DataFrame(columns=['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH', 'TREND_HW']))
+trend_df = pd.concat(trend_frames, ignore_index=True) if trend_frames else pd.DataFrame(
+    columns=['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW']
+)
 
-# Merge back to full df (with age rows, etc.)
-df = df.merge(trend_df, on=['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'], how='left')
+# Merge back to full df (replicates to all ages of the cohort)
+df = df.merge(trend_df, on=['PLANT','BIKE_GROUPED','DISPATCH_MONTH'], how='left')
 
-# Optional: fill remaining NAs within each PLANT–BIKE_GROUPED
-df['TREND_HW'] = (df.groupby(['PLANT', 'BIKE_GROUPED'])['TRE
-
+# Fill remaining NAs within each group (early/late edges)
+df['TREND_HW'] = df.groupby(['PLANT','BIKE_GROUPED'])['TREND_HW'].transform(lambda s: s.ffill().bfill())
