@@ -1,0 +1,37 @@
+import pandas as pd
+import numpy as np
+from patsy import dmatrix
+from sklearn.linear_model import LinearRegression
+
+# Aggregate your data (plant,bike,age,WARRANTY_COST)
+agg_df = df.groupby(['PLANT','BIKE_GROUPED','age'], as_index=False)['WARRANTY_COST'].mean()
+
+# Step 1: Fit global age curve on all data
+ages = agg_df['age'].values
+costs = agg_df['WARRANTY_COST'].values
+spline_basis = dmatrix("bs(ages, df=6, degree=3, include_intercept=True)",
+                       {"ages": ages}, return_type='dataframe')
+
+global_age_model = LinearRegression()
+global_age_model.fit(spline_basis, costs)
+
+def predict_global_age_curve(age_array):
+    X_pred = dmatrix("bs(age_array, df=6, degree=3, include_intercept=True)",
+                     {"age_array": age_array}, return_type='dataframe')
+    return global_age_model.predict(X_pred)
+
+# Step 2: Calculate group-level scaling factors
+# Get predicted global cost for each row in agg_df
+agg_df['pred_global'] = predict_global_age_curve(agg_df['age'].values)
+
+# Calculate ratio actual / predicted per plant-bike group
+agg_df['ratio'] = agg_df['WARRANTY_COST'] / (agg_df['pred_global'] + 1e-6)
+
+group_scales = agg_df.groupby(['PLANT','BIKE_GROUPED'])['ratio'].mean().reset_index()
+
+# Step 3: Map scaling factor back to main df and compute age curve feature
+df = df.merge(group_scales, on=['PLANT','BIKE_GROUPED'], how='left')
+
+df['ratio'] = df['ratio'].fillna(1.0)  # Default scale factor 1 for new groups
+
+df['AGE_CURVE'] = predict_global_age_curve(df['age'].values) * df['ratio']
