@@ -84,85 +84,111 @@ df = df.merge(trend_df, on=['plant', 'model', 'dispatch_month'], how='left')
 
 
 
-
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+# 0) Normalize DISPATCH_MONTH in the main df to monthly start datetime
+# Handles int-like (e.g., 202401), string, period, or datetime inputs.
+def to_month_start_datetime(s):
+    s = pd.to_datetime(s, errors='coerce')
+    # Move to first day of month at 00:00
+    s = s.dt.to_period('M').dt.to_timestamp('MS')
+    return s
+
+df = df.copy()
+df['DISPATCH_MONTH'] = to_month_start_datetime(df['DISPATCH_MONTH'])
+
+# Optional: sanity check for rows that could not be parsed
+bad = df['DISPATCH_MONTH'].isna().sum()
+if bad > 0:
+    print(f"Warning: {bad} rows have unparseable DISPATCH_MONTH; they will be dropped from trend merge.")
+
+# 1) Safe Holt–Winters trend extractor
 def safe_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add'):
-    """
-    Robust Holt-Winters trend extractor for monthly series.
-    Handles short series, missing values, and disables seasonality when needed.
-    Returns pd.Series aligned to ts.index, name 'TREND_HW'.
-    """
     ts = ts.copy()
+    # Ensure monthly freq
+    ts = ts.asfreq('MS')
 
-    # Ensure monthly freq alignment
-    if ts.index.freqstr != 'MS':
-        ts = ts.asfreq('MS')
-
-    # If all missing or empty
     if len(ts) == 0 or ts.isna().all():
         return pd.Series(index=ts.index, dtype=float, name='TREND_HW')
 
-    # Conservative fill for internal modeling
     ts_filled = ts.ffill().bfill()
-
     n = len(ts_filled)
 
-    # Tiny series fallbacks
     if n == 1:
-        out = pd.Series([ts_filled.iloc[0]], index=ts.index, name='TREND_HW')
-        return out
+        return pd.Series([ts_filled.iloc[0]], index=ts.index, name='TREND_HW')
     if n == 2:
         val = ts_filled.mean()
-        out = pd.Series([val]*n, index=ts.index, name='TREND_HW')
-        return out
-    if n < 24:
-        use_seasonal = None
-    else:
-        use_seasonal = seasonal
+        return pd.Series([val]*n, index=ts.index, name='TREND_HW')
+
+    use_seasonal = seasonal if n >= 24 else None
 
     try:
         model = ExponentialSmoothing(
             ts_filled,
             trend=trend,
             seasonal=use_seasonal,
-            seasonal_periods=seasonal_periods if use_seasonal else None,
+            seasonal_periods=(seasonal_periods if use_seasonal else None),
             initialization_method='estimated'
         )
         fit = model.fit(optimized=True)
         fitted = fit.fittedvalues
     except Exception:
-        # Final fallback: simple EMA
+        # EMA fallback
         alpha = 0.3
-        fitted_vals = []
-        ema = ts_filled.iloc
+        ema_vals = []
+        ema = ts_filled.iloc[0]
         for x in ts_filled:
             ema = alpha*x + (1-alpha)*ema
-            fitted_vals.append(ema)
-        fitted = pd.Series(fitted_vals, index=ts.index)
+            ema_vals.append(ema)
+        fitted = pd.Series(ema_vals, index=ts.index)
 
     fitted.name = 'TREND_HW'
     return fitted
 
-# Build trend dataframe (PLANT, BIKE_GROUPED, DISPATCH_MONTH, WARRANTY_COST)
-agg = df.groupby(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])['WARRANTY_COST'].sum().reset_index()
-agg['DISPATCH_MONTH'] = pd.to_datetime(agg['DISPATCH_MONTH'])
+# 2) Build aggregated monthly series with datetime index
+agg = (
+    df.loc[df['DISPATCH_MONTH'].notna()]
+      .groupby(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'], as_index=False)['WARRANTY_COST']
+      .sum()
+)
+
+# Ensure DISPATCH_MONTH is monthly start datetime here too (safety)
+agg['DISPATCH_MONTH'] = to_month_start_datetime(agg['DISPATCH_MONTH'])
 agg = agg.sort_values(['PLANT','BIKE_GROUPED','DISPATCH_MONTH'])
 
+# 3) Fit trend per PLANT–BIKE_GROUPED and collect
 trend_frames = []
 for (plant, bike), g in agg.groupby(['PLANT','BIKE_GROUPED']):
-    ts = g.set_index('DISPATCH_MONTH')['WARRANTY_COST'].asfreq('MS')
+    ts = g.set_index('DISPATCH_MONTH')['WARRANTY_COST']
+    # Ensure monthly freq for the series (this creates a full monthly index)
+    ts = ts.asfreq('MS')
     trend = safe_hw_trend(ts, seasonal_periods=12, seasonal='add', trend='add')
-    tmp = trend.reset_index()
+    tmp = trend.reset_index()  # columns: DISPATCH_MONTH, TREND_HW
     tmp['PLANT'] = plant
     tmp['BIKE_GROUPED'] = bike
     trend_frames.append(tmp[['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW']])
 
-trend_df = pd.concat(trend_frames, ignore_index=True) if trend_frames else pd.DataFrame(
-    columns=['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW']
+trend_df = (
+    pd.concat(trend_frames, ignore_index=True)
+    if trend_frames else
+    pd.DataFrame(columns=['PLANT','BIKE_GROUPED','DISPATCH_MONTH','TREND_HW'])
 )
 
+# 4) Ensure DISPATCH_MONTH dtype matches in both dataframes before merge
+trend_df['DISPATCH_MONTH'] = to_month_start_datetime(trend_df['DISPATCH_MONTH'])
+df['DISPATCH_MONTH'] = to_month_start_datetime(df['DISPATCH_MONTH'])
+
+# 5) Merge back (now both sides are datetime64[ns] at month-start)
 df = df.merge(trend_df, on=['PLANT','BIKE_GROUPED','DISPATCH_MONTH'], how='left')
-df['TREND_HW'] = df.groupby(['PLANT','BIKE_GROUPED'])['TREND_HW'].transform(lambda s: s.ffill().bfill())
+
+# 6) Fill missing trend values within each PLANT–BIKE_GROUPED
+df['TREND_HW'] = (
+    df.groupby(['PLANT','BIKE_GROUPED'], group_keys=False)['TREND_HW']
+      .apply(lambda s: s.ffill().bfill())
+)
+
+# Optional: if any rows still NA (e.g., entirely missing groups), fill with group mean or global mean
+if df['TREND_HW'].isna().any():
+    df['TREND_HW'] = df['TREND_HW'].fillna(df['TREND_HW'].mean())
