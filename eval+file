@@ -34,6 +34,15 @@ from functools import reduce
 final_table = reduce(lambda left, right: pd.merge(left, right, on="warranty_month", how="outer").fillna(0), all_tables)
 final_table = final_table.sort_values("warranty_month").reset_index(drop=True)
 
+
+# Format numbers with commas and diff% with 2 decimals + %
+for DISP_MONTH in DISPATCH_MONTHS:
+    FINAL_TABLE[f"PRED_COST_{DISP_MONTH}"] = FINAL_TABLE[f"PRED_COST_{DISP_MONTH}"].map('{:,.0f}'.format)
+    FINAL_TABLE[f"REAL_COST_{DISP_MONTH}"] = FINAL_TABLE[f"REAL_COST_{DISP_MONTH}"].map('{:,.0f}'.format)
+    FINAL_TABLE[f"DIFF_%_{DISP_MONTH}"] = FINAL_TABLE[f"DIFF_%_{DISP_MONTH}"].map(lambda x: f"{x:.2f}%")
+
+
+
 # Save to Excel
 final_table.to_excel("side_by_side_cost_summary.xlsx", index=False)
 
