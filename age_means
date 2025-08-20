@@ -1,0 +1,29 @@
+# Suppose you want to compute for age=12 and k=6 dispatch months
+
+def compute_age_trend_features(df, ages=[12], window=6):
+    df_sorted = df.sort_values(['PLANT','BIKE_GROUPED','age','DISPATCH_MONTH'])
+    
+    for a in ages:
+        # For each plant-bik, compute rolling mean for age a across dispatch months
+        mask = df_sorted['age'] == a
+        df_sub = df_sorted[mask]
+        # Set multi-index for easy rolling by group
+        df_sub = df_sub.set_index(['PLANT', 'BIKE_GROUPED', 'DISPATCH_MONTH'])
+        df_sub['roll_mean_age_%d' % a] = (
+            df_sub.groupby(['PLANT','BIKE_GROUPED'])['WARRANTY_COST']
+            .rolling(window, min_periods=1).mean().reset_index(level=[0,1], drop=True)
+        )
+        # Merge back
+        df_sorted.loc[mask, 'roll_mean_age_%d' % a] = df_sub['roll_mean_age_%d' % a].values
+        
+        # Optionally, compute EMA (Exponentially Weighted Mean)
+        df_sub['ema_age_%d' % a] = (
+            df_sub.groupby(['PLANT','BIKE_GROUPED'])['WARRANTY_COST']
+            .ewm(span=window, adjust=False).mean().reset_index(level=[0,1], drop=True)
+        )
+        df_sorted.loc[mask, 'ema_age_%d' % a] = df_sub['ema_age_%d' % a].values
+        
+    return df_sorted
+
+# Example usage:
+df = compute_age_trend_features(df, ages=range(1,61), window=6)
