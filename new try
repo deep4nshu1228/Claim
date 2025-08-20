@@ -131,3 +131,50 @@
 
 
 # 	df["offset_logE"] = np.log(df["volume"])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+knots = [3, 6, 12, 24, 36, 48, 60]
+df["age"] = df["age"].astype(float)
+df["age_linear"] = df["age"]
+for k in knots:
+    df[f"age_hinge_{k}"] = np.maximum(df["age"] - k, 0.0)
