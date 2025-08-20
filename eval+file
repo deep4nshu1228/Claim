@@ -8,32 +8,33 @@ def create_summary(df, dispatch_month, start_warranty_month, end_warranty_month)
     ]
     return filtered_df.groupby("warranty_month")["cost"].sum().reset_index()
 
-# Set your filter values
-dispatch_month = '2025-05'  
+# Your dispatch months list
+dispatch_months = ['2025-05', '2025-06', '2025-07']  
 start_warranty_month = '2025-06'
 end_warranty_month = '2025-08'
 
-# Generate summary tables
-pred_summary = create_summary(prediction_df, dispatch_month, start_warranty_month, end_warranty_month)
-act_summary = create_summary(actual_df, dispatch_month, start_warranty_month, end_warranty_month)
+all_tables = []
 
-# Rename columns for merging
-pred_summary = pred_summary.rename(columns={"cost": "pred_cost"})
-act_summary = act_summary.rename(columns={"cost": "real_cost"})
+for disp_month in dispatch_months:
+    pred_summary = create_summary(prediction_df, disp_month, start_warranty_month, end_warranty_month)
+    act_summary = create_summary(actual_df, disp_month, start_warranty_month, end_warranty_month)
+    
+    pred_summary = pred_summary.rename(columns={"cost": f"pred_cost_{disp_month}"})
+    act_summary = act_summary.rename(columns={"cost": f"real_cost_{disp_month}"})
+    
+    merged = pd.merge(act_summary, pred_summary, on="warranty_month", how="outer").fillna(0)
+    merged[f"diff_%_{disp_month}"] = ((merged[f"pred_cost_{disp_month}"] - merged[f"real_cost_{disp_month}"]) / 
+                                      merged[f"real_cost_{disp_month}"].replace(0, 1)) * 100
 
-# Merge on warranty_month
-merged = pd.merge(act_summary, pred_summary, on="warranty_month", how="outer").fillna(0)
+    merged = merged.sort_values("warranty_month").reset_index(drop=True)
+    all_tables.append(merged)
 
-# Add dispatch month column
-merged["dispatch_month"] = dispatch_month
+# Merge all dispatch month tables side-by-side on warranty_month
+from functools import reduce
+final_table = reduce(lambda left, right: pd.merge(left, right, on="warranty_month", how="outer").fillna(0), all_tables)
+final_table = final_table.sort_values("warranty_month").reset_index(drop=True)
 
-# Calculate difference percentage
-merged["diff_%"] = ((merged["pred_cost"] - merged["real_cost"]) / merged["real_cost"].replace(0, 1)) * 100
+# Save to Excel
+final_table.to_excel("side_by_side_cost_summary.xlsx", index=False)
 
-# Reorder columns
-final_df = merged[["dispatch_month", "warranty_month", "real_cost", "pred_cost", "diff_%"]]
-
-# Save to excel
-final_df.to_excel("combined_cost_summary.xlsx", index=False)
-
-print("Combined summary saved to combined_cost_summary.xlsx")
+print("Side-by-side summary saved to side_by_side_cost_summary.xlsx")
