@@ -1,0 +1,133 @@
+# Hi Deepanshu can you try this
+
+# 1.  
+    # age_knots = [3, 6, 12, 24, 36, 48]
+    # age_spline = dmatrix("bs(age, knots=({},), degree=3, include_intercept=False)".format(
+    #                      ", ".join(str(k) for k in age_knots)), 
+    #                      {"age": df["age"]}, return_type="dataframe")
+    # age_cols = [f"age_spline_{i}" for i in range(age_spline.shape[1])]
+    # age_spline.columns = age_col
+
+# 2. plant and model 1 hot encoding. month cyclic using sine and cosine
+
+# 3. 
+    # X = pd.concat([age_spline, plant_d, model_d, dispatch, warranty], axis=1)
+    # y = df["cost"].values
+    # df["offset_logE"] = np.log(df["volume"])
+    # offset = df["offset_logE"].values
+    # X_mat = sm.add_constant(X) 
+
+# 4.
+    # def fit_tweedie(power):
+    #     fam = sm.families.Tweedie(var_power=power, link=sm.families.links.log())
+    #     model = sm.GLM(y, X_mat, family=fam, offset=offset)
+    #     res = model.fit()
+    #     return res
+
+    # powers = [1.1, 1.3, 1.5, 1.7, 1.9]
+    # fits = []
+    # for pwr in powers:
+    #     try:
+    #         res = fit_tweedie(pwr)
+    #         fits.append((pwr, res.aic, res))
+    #         print(f"power={pwr:.1f} AIC={res.aic:.1f}")
+    #     except Exception as e:
+    #         print(f"power={pwr:.1f} failed: {e}")
+
+    # # Pick best by AIC
+    # best_p, best_aic, best_res = sorted(fits, key=lambda x: x)
+    # print(f"Chosen power p={best_p}, AIC={best_aic:.1f}")
+    # print(best_res.summary())
+
+# 5. 
+    # df["pred"] = best_res.predict(X_mat, offset=offset)
+    # df["resid_dev"] = best_res.resid_deviance.copy()
+
+    # cohorts = (df.groupby(["dispatch_month", "plant", "model"], as_index=False)
+    #          .agg(volume=("volume","first")))
+
+# 6.
+    # def add_months(ym_str, k):
+    #     # ym_str: 'YYYY-MM' ; k: integer months (can be negative)
+    #     y, m = map(int, ym_str.split("-"))
+    #     total = y*12 + m - 1 + k
+    #     y2 = total // 12
+    #     m2 = total % 12 + 1
+    #     return f"{y2:04d}-{m2:02d}"
+
+    # w_sep = "2025-09"
+    # rows = []
+    # for a in range(1, 61):
+    #     d = add_months(w_sep, -a)
+    #     sub = cohorts[cohorts["dispatch_month"] == d]
+    #     if sub.empty:
+    #         continue
+    #     tmp = sub.copy()
+    #     tmp["age"] = a
+    #     tmp["warranty_month"] = w_sep
+    #     rows.append(tmp)
+
+	
+	
+# 7. Prediction
+    # pred_grid = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["dispatch_month","plant","model","volume","age","warranty_month"])
+
+    # # Build features for pred_grid same as training
+    # pred_grid["offset_logE"] = np.log(pred_grid["volume"])
+
+    # age_spline_new = dmatrix("bs(age, knots=({},), degree=3, include_intercept=False)".format(
+    #                         ", ".join(str(k) for k in age_knots)), 
+    #                         {"age": pred_grid["age"]}, return_type="dataframe")
+    # age_spline_new.columns = age_cols
+
+    # plant_d_new = pd.get_dummies(pred_grid["plant"], prefix="plant", drop_first=True)
+    # model_d_new = pd.get_dummies(pred_grid["model"], prefix="model", drop_first=True)
+    # dispatch_d_new = pd.get_dummies(pred_grid["dispatch_month"], prefix="disp", drop_first=True)
+    # warranty_d_new = pd.get_dummies(pred_grid["warranty_month"], prefix="war", drop_first=True)
+
+    # # Align columns with training design (missing columns → 0)
+    # def align_columns(new_df, ref_cols):
+    #     for c in ref_cols:
+    #         if c not in new_df.columns:
+    #             new_df[c] = 0.0
+    #     extra = [c for c in new_df.columns if c not in ref_cols]
+    #     if extra:
+    #         new_df = new_df.drop(columns=extra)
+    #     return new_df[ref_cols]
+
+    # X_new = pd.concat([age_spline_new, plant_d_new, model_d_new, dispatch_d_new, warranty_d_new], axis=1)
+    # X_new = align_columns(X_new, X.columns.tolist())
+    # X_new = sm.add_constant(X_new)  # adds intercept
+
+    # pred_grid["pred_cost"] = best_res.predict(X_new, offset=pred_grid["offset_logE"].values)
+
+    # # Aggregations
+    # sep_total = pred_grid["pred_cost"].sum()
+    # by_plant = pred_grid.groupby("plant", as_index=False)["pred_cost"].sum()
+    # by_model = pred_grid.groupby("model", as_index=False)["pred_cost"].sum()
+    # by_age = pred_grid.groupby("age", as_index=False)["pred_cost"].sum()
+
+    # print("Sep 2025 predicted total cost:", sep_total)
+    # print(by_plant.sort_values("pred_cost", ascending=False).head())
+    # print(by_model.sort_values("pred_cost", ascending=False).head())
+    # print(by_age.head())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 	df["offset_logE"] = np.log(df["volume"])
