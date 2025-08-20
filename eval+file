@@ -1,0 +1,39 @@
+import pandas as pd
+
+def create_summary(df, dispatch_month, start_warranty_month, end_warranty_month):
+    filtered_df = df[
+        (df["dispatch_month"] == dispatch_month) &
+        (df["warranty_month"] >= start_warranty_month) &
+        (df["warranty_month"] <= end_warranty_month)
+    ]
+    return filtered_df.groupby("warranty_month")["cost"].sum().reset_index()
+
+# Set your filter values
+dispatch_month = '2025-05'  
+start_warranty_month = '2025-06'
+end_warranty_month = '2025-08'
+
+# Generate summary tables
+pred_summary = create_summary(prediction_df, dispatch_month, start_warranty_month, end_warranty_month)
+act_summary = create_summary(actual_df, dispatch_month, start_warranty_month, end_warranty_month)
+
+# Rename columns for merging
+pred_summary = pred_summary.rename(columns={"cost": "pred_cost"})
+act_summary = act_summary.rename(columns={"cost": "real_cost"})
+
+# Merge on warranty_month
+merged = pd.merge(act_summary, pred_summary, on="warranty_month", how="outer").fillna(0)
+
+# Add dispatch month column
+merged["dispatch_month"] = dispatch_month
+
+# Calculate difference percentage
+merged["diff_%"] = ((merged["pred_cost"] - merged["real_cost"]) / merged["real_cost"].replace(0, 1)) * 100
+
+# Reorder columns
+final_df = merged[["dispatch_month", "warranty_month", "real_cost", "pred_cost", "diff_%"]]
+
+# Save to excel
+final_df.to_excel("combined_cost_summary.xlsx", index=False)
+
+print("Combined summary saved to combined_cost_summary.xlsx")
