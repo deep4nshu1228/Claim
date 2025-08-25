@@ -1,0 +1,16 @@
+import pandas as pd
+
+# Assume df is your DataFrame with the columns mentioned
+df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
+
+pivot_table = df.pivot_table(
+    index='DISPATCH_MONTH',
+    columns='BIKE_GROUPED',
+    values='PREDICTED_COST',
+    aggfunc='sum'
+).sort_index()
+
+pivot_table.reset_index(inplace=True)
+pivot_table['DISPATCH_MONTH'] = pivot_table['DISPATCH_MONTH'].dt.strftime('%Y-%m')
+
+print(pivot_table)
