@@ -37,48 +37,51 @@ def calculate_remaining_age_cost(df):
 
 
 
-def create_model_sheets_with_remaining_costs(
-    df, start_dispatch_month, end_dispatch_month, output_filename='model_warranty_costs_remaining.xlsx'
+def create_model_sheets_age_rows_single_dispatch_col(
+    df, start_dispatch_month, end_dispatch_month, output_filename='model_warranty_costs_by_age.xlsx'
 ):
     df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
     start_date = pd.to_datetime(start_dispatch_month, format='%Y-%m')
     end_date = pd.to_datetime(end_dispatch_month, format='%Y-%m')
 
-    # Filter dispatch months within the provided range
+    # Filter by dispatch month range
     df_filtered = df[(df['DISPATCH_MONTH'] >= start_date) & (df['DISPATCH_MONTH'] <= end_date)].copy()
 
-    # Calculate remaining age cost using the method discussed
+    # Calculate remaining age costs previously defined
     df_filtered = calculate_remaining_age_cost(df_filtered)
-
-    # Calculate remaining age and per unit, per month costs
     df_filtered['REMAINING_AGE'] = 60 - df_filtered['AGE']
     df_filtered['PER_UNIT_COST'] = df_filtered['REMAINING_AGE_COST'] / df_filtered['VOLUME'] / df_filtered['REMAINING_AGE']
-    df_filtered['PER_MONTH_COST'] = df_filtered['PER_UNIT_COST'] * df_filtered['VOLUME']
+    df_filtered['PER_VOLUME_COST'] = df_filtered['REMAINING_AGE_COST'] / df_filtered['VOLUME']
 
     with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
         bike_models = df_filtered['BIKE_GROUPED'].unique()
 
         for model in bike_models:
             model_df = df_filtered[df_filtered['BIKE_GROUPED'] == model].copy()
-            data_for_export = pd.DataFrame()
 
-            for idx, row in model_df.iterrows():
-                start_month = row['DISPATCH_MONTH']
-                remaining_months = row['REMAINING_AGE']
-                per_unit_cost = row['PER_UNIT_COST']
+            # Pivot table with index: AGE, columns: DISPATCH_MONTH, values: PER_UNIT_COST
+            pivot_per_unit = model_df.pivot_table(
+                index='AGE',
+                columns=model_df['DISPATCH_MONTH'].dt.strftime('%Y-%m'),
+                values='PER_UNIT_COST',
+                aggfunc='first'
+            )
 
-                index_label = f'{model}_{row.AGE}_{start_month.strftime("%Y-%m")}'
-                if index_label not in data_for_export.index:
-                    data_for_export.loc[index_label] = 0
+            # Pivot table with index: AGE, columns: DISPATCH_MONTH, values: PER_VOLUME_COST
+            pivot_per_volume = model_df.pivot_table(
+                index='AGE',
+                columns=model_df['DISPATCH_MONTH'].dt.strftime('%Y-%m'),
+                values='PER_VOLUME_COST',
+                aggfunc='first'
+            )
 
-                for month_offset in range(remaining_months):
-                    month_label = (start_month + pd.DateOffset(months=month_offset)).strftime('%Y-%m')
-                    if month_label not in data_for_export.columns:
-                        data_for_export[month_label] = 0
-                    data_for_export.at[index_label, month_label] += per_unit_cost
+            # Combine both pivot tables with multi-index columns
+            pivot_combined = pd.concat(
+                {'Per Unit Cost': pivot_per_unit, 'Per Volume Cost': pivot_per_volume},
+                axis=1
+            )
 
-            data_for_export.fillna(0, inplace=True)
-            data_for_export.to_excel(writer, sheet_name=model)
+            pivot_combined.to_excel(writer, sheet_name=model)
 
     print(f'Data saved in {output_filename}')
 
