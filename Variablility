@@ -1,0 +1,52 @@
+import pandas as pd
+
+def create_model_sheets_with_remaining_costs(
+    df, start_dispatch_month, end_dispatch_month, output_filename='model_warranty_costs_remaining.xlsx'
+):
+    df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
+    start_date = pd.to_datetime(start_dispatch_month, format='%Y-%m')
+    end_date = pd.to_datetime(end_dispatch_month, format='%Y-%m')
+
+    # Filter dispatch months within the provided range
+    df_filtered = df[(df['DISPATCH_MONTH'] >= start_date) & (df['DISPATCH_MONTH'] <= end_date)].copy()
+
+    # Calculate remaining age cost using the method discussed
+    df_filtered = calculate_remaining_age_cost(df_filtered)
+
+    # Calculate remaining age and per unit, per month costs
+    df_filtered['REMAINING_AGE'] = 60 - df_filtered['AGE']
+    df_filtered['PER_UNIT_COST'] = df_filtered['REMAINING_AGE_COST'] / df_filtered['VOLUME'] / df_filtered['REMAINING_AGE']
+    df_filtered['PER_MONTH_COST'] = df_filtered['PER_UNIT_COST'] * df_filtered['VOLUME']
+
+    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        bike_models = df_filtered['BIKE_GROUPED'].unique()
+
+        for model in bike_models:
+            model_df = df_filtered[df_filtered['BIKE_GROUPED'] == model].copy()
+            data_for_export = pd.DataFrame()
+
+            for idx, row in model_df.iterrows():
+                start_month = row['DISPATCH_MONTH']
+                remaining_months = row['REMAINING_AGE']
+                per_unit_cost = row['PER_UNIT_COST']
+
+                index_label = f'{model}_{row.AGE}_{start_month.strftime("%Y-%m")}'
+                if index_label not in data_for_export.index:
+                    data_for_export.loc[index_label] = 0
+
+                for month_offset in range(remaining_months):
+                    month_label = (start_month + pd.DateOffset(months=month_offset)).strftime('%Y-%m')
+                    if month_label not in data_for_export.columns:
+                        data_for_export[month_label] = 0
+                    data_for_export.at[index_label, month_label] += per_unit_cost
+
+            data_for_export.fillna(0, inplace=True)
+            data_for_export.to_excel(writer, sheet_name=model)
+
+    print(f'Data saved in {output_filename}')
+
+
+# Make sure to have the calculate_remaining_age_cost function defined from above
+
+# Example usage:
+# create_model_sheets_with_remaining_costs(df, '2020-01', '2023-01')
