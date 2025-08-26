@@ -1,39 +1,45 @@
 import pandas as pd
 
-def sum_costs_based_on_12_months(df, reference_month):
-    # Convert to datetime
+def save_12month_costs_all_months(df, months_list, output_filename='warranty_costs_12months_summary.xlsx'):
+    # Ensure datetime conversion for relevant columns
     df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
     df['WARRANTY_MONTH'] = pd.to_datetime(df['WARRANTY_MONTH'], format='%Y-%m')
-    ref_date = pd.to_datetime(reference_month, format='%Y-%m')
 
-    # Filter dispatch months within last 60 months
-    start_date = ref_date - pd.DateOffset(months=60)
-    filtered_df = df[(df['DISPATCH_MONTH'] > start_date) & (df['DISPATCH_MONTH'] <= ref_date)]
+    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        for month in months_list:
+            ref_date = pd.to_datetime(month, format='%Y-%m')
+            start_date = ref_date - pd.DateOffset(months=60)
 
-    # Filter warranty months starting from reference_month
-    future_df = filtered_df[filtered_df['WARRANTY_MONTH'] >= ref_date].copy()
+            # Filter dispatch months within last 60 months
+            filtered_df = df[(df['DISPATCH_MONTH'] > start_date) & (df['DISPATCH_MONTH'] <= ref_date)]
 
-    # Find unique warranty months >= ref_date, sorted
-    warranty_months = future_df['WARRANTY_MONTH'].drop_duplicates().sort_values()
+            # Filter warranty months starting from reference month
+            future_df = filtered_df[filtered_df['WARRANTY_MONTH'] >= ref_date].copy()
 
-    results = []
+            # Sorted unique warranty months
+            warranty_months = future_df['WARRANTY_MONTH'].drop_duplicates().sort_values()
 
-    # Iterate over warranty months to calculate sum over next 12 months or less if fewer remain
-    for i, start_month in enumerate(warranty_months):
-        end_idx = i + 12
-        months_range = warranty_months.iloc[i:end_idx]
+            results = []
+            for i, start_month in enumerate(warranty_months):
+                end_idx = i + 12
+                months_range = warranty_months.iloc[i:end_idx]
 
-        cost_sum = future_df[future_df['WARRANTY_MONTH'].isin(months_range)]['WARRANTY_COST'].sum()
+                cost_sum = future_df[future_df['WARRANTY_MONTH'].isin(months_range)]['WARRANTY_COST'].sum()
 
-        results.append({
-            'months': len(months_range),
-            'start_date': months_range.min().strftime('%Y-%m'),
-            'end_date': months_range.max().strftime('%Y-%m'),
-            'cost': cost_sum
-        })
+                results.append({
+                    'months': len(months_range),
+                    'start_date': months_range.min().strftime('%Y-%m'),
+                    'end_date': months_range.max().strftime('%Y-%m'),
+                    'cost': cost_sum
+                })
 
-    return pd.DataFrame(results)
+            summary_df = pd.DataFrame(results)
+
+            # Save the summary dataframe to the sheet named as the month
+            summary_df.to_excel(writer, sheet_name=month, index=False)
+
+    print(f'Data saved in {output_filename}')
 
 # Example usage:
-# df_costs_summary = sum_costs_based_on_12_months(df, '2023-01')
-# print(df_costs_summary)
+# months = ['2023-01', '2023-02', '2023-03']
+# save_12month_costs_all_months(df, months)
