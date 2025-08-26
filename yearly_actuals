@@ -53,3 +53,31 @@ def save_non_overlapping_12month_costs_all_months(df, months_list, output_filena
 # Example usage:
 # months = ['2023-01', '2023-02', '2023-03']
 # save_non_overlapping_12month_costs_all_months(df, months)
+
+
+
+
+##################################### DISPATCH VOLUMES ########################################################
+import pandas as pd
+
+def get_volume_for_multiple_months(df_volume, months_list):
+    df_volume['DISPATCH_MONTH'] = pd.to_datetime(df_volume['DISPATCH_MONTH'], format='%Y-%m')
+
+    results = []
+
+    for month in months_list:
+        ref_date = pd.to_datetime(month, format='%Y-%m')
+        start_date = ref_date - pd.DateOffset(months=60)
+
+        filtered_df = df_volume[(df_volume['DISPATCH_MONTH'] > start_date) & (df_volume['DISPATCH_MONTH'] <= ref_date)]
+        total_volume = filtered_df['VOLUME'].sum()
+
+        results.append({'reference_month': month, 'total_volume': total_volume})
+
+    return pd.DataFrame(results)
+
+# Example usage:
+# months = ['2023-01', '2023-02', '2023-03']
+# volume_summary = get_volume_for_multiple_months(df_volume, months)
+# print(volume_summary)
+
