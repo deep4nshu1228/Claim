@@ -60,24 +60,25 @@ def save_non_overlapping_12month_costs_all_months(df, months_list, output_filena
 ##################################### DISPATCH VOLUMES ########################################################
 import pandas as pd
 
-def get_volume_for_multiple_months(df_volume, months_list):
+def save_volume_by_months_sheets(df_volume, months_list, output_filename='volume_summary_by_month.xlsx'):
     df_volume['DISPATCH_MONTH'] = pd.to_datetime(df_volume['DISPATCH_MONTH'], format='%Y-%m')
 
-    results = []
+    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        for month in months_list:
+            ref_date = pd.to_datetime(month, format='%Y-%m')
+            start_date = ref_date - pd.DateOffset(months=60)
 
-    for month in months_list:
-        ref_date = pd.to_datetime(month, format='%Y-%m')
-        start_date = ref_date - pd.DateOffset(months=60)
+            filtered_df = df_volume[(df_volume['DISPATCH_MONTH'] > start_date) & (df_volume['DISPATCH_MONTH'] <= ref_date)]
+            total_volume = filtered_df['VOLUME'].sum()
 
-        filtered_df = df_volume[(df_volume['DISPATCH_MONTH'] > start_date) & (df_volume['DISPATCH_MONTH'] <= ref_date)]
-        total_volume = filtered_df['VOLUME'].sum()
+            # Create a small dataframe with results to save to Excel
+            df_to_save = pd.DataFrame({'reference_month': [month], 'total_volume': [total_volume]})
 
-        results.append({'reference_month': month, 'total_volume': total_volume})
+            df_to_save.to_excel(writer, sheet_name=month, index=False)
 
-    return pd.DataFrame(results)
+    print(f'Data saved in {output_filename}')
 
 # Example usage:
 # months = ['2023-01', '2023-02', '2023-03']
-# volume_summary = get_volume_for_multiple_months(df_volume, months)
-# print(volume_summary)
+# save_volume_by_months_sheets(df_volume, months)
 
