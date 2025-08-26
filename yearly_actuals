@@ -1,0 +1,30 @@
+import pandas as pd
+
+def save_costs_all_months(df, months_list, output_filename='warranty_costs_summary.xlsx'):
+    # Ensure datetime conversion for relevant columns
+    df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
+    df['WARRANTY_MONTH'] = pd.to_datetime(df['WARRANTY_MONTH'], format='%Y-%m')
+
+    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        for month in months_list:
+            ref_date = pd.to_datetime(month, format='%Y-%m')
+            start_date = ref_date - pd.DateOffset(months=60)
+
+            # Filter dispatch months within last 60 months up to the reference month
+            filtered_df = df[(df['DISPATCH_MONTH'] > start_date) & (df['DISPATCH_MONTH'] <= ref_date)]
+
+            # Future warranty costs from reference month onward
+            future_costs = df[df['WARRANTY_MONTH'] >= ref_date].copy()
+            summary = future_costs.groupby('WARRANTY_MONTH')['WARRANTY_COST'].sum().reset_index()
+
+            # Write filtered data starting at the top of the sheet
+            filtered_df.to_excel(writer, sheet_name=month, index=False, startrow=0)
+
+            # Write future cost summary below the filtered data, separated by a few rows
+            summary.to_excel(writer, sheet_name=month, index=False, startrow=len(filtered_df) + 3)
+
+    print(f'Data saved in {output_filename}')
+
+# Example usage:
+# months = ['2023-01', '2023-02', '2023-03']
+# save_costs_all_months(df, months)
