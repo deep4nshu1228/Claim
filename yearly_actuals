@@ -1,6 +1,6 @@
 import pandas as pd
 
-def save_12month_costs_all_months(df, months_list, output_filename='warranty_costs_12months_summary.xlsx'):
+def save_non_overlapping_12month_costs_all_months(df, months_list, output_filename='warranty_costs_12months_nonoverlapping.xlsx'):
     # Ensure datetime conversion for relevant columns
     df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
     df['WARRANTY_MONTH'] = pd.to_datetime(df['WARRANTY_MONTH'], format='%Y-%m')
@@ -17,21 +17,31 @@ def save_12month_costs_all_months(df, months_list, output_filename='warranty_cos
             future_df = filtered_df[filtered_df['WARRANTY_MONTH'] >= ref_date].copy()
 
             # Sorted unique warranty months
-            warranty_months = future_df['WARRANTY_MONTH'].drop_duplicates().sort_values()
+            warranty_months = future_df['WARRANTY_MONTH'].drop_duplicates().sort_values().to_list()
 
             results = []
-            for i, start_month in enumerate(warranty_months):
-                end_idx = i + 12
-                months_range = warranty_months.iloc[i:end_idx]
+            i = 0
+            n = len(warranty_months)
+            while i < n:
+                start_month = warranty_months[i]
+                # Calculate the end month, max 12 months ahead or until last available month
+                max_end_idx = min(i + 12, n)
+                end_month = warranty_months[max_end_idx - 1]
 
-                cost_sum = future_df[future_df['WARRANTY_MONTH'].isin(months_range)]['WARRANTY_COST'].sum()
+                # Select months between start_month and end_month inclusive
+                range_months = [m for m in warranty_months if start_month <= m <= end_month]
+
+                cost_sum = future_df[future_df['WARRANTY_MONTH'].isin(range_months)]['WARRANTY_COST'].sum()
 
                 results.append({
-                    'months': len(months_range),
-                    'start_date': months_range.min().strftime('%Y-%m'),
-                    'end_date': months_range.max().strftime('%Y-%m'),
+                    'months': len(range_months),
+                    'start_date': start_month.strftime('%Y-%m'),
+                    'end_date': end_month.strftime('%Y-%m'),
                     'cost': cost_sum
                 })
+
+                # Move to the next start index, which is just after the current end_month
+                i = max_end_idx
 
             summary_df = pd.DataFrame(results)
 
@@ -42,4 +52,4 @@ def save_12month_costs_all_months(df, months_list, output_filename='warranty_cos
 
 # Example usage:
 # months = ['2023-01', '2023-02', '2023-03']
-# save_12month_costs_all_months(df, months)
+# save_non_overlapping_12month_costs_all_months(df, months)
