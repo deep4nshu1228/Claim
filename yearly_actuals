@@ -1,6 +1,6 @@
 import pandas as pd
 
-def save_costs_all_months(df, months_list, output_filename='warranty_costs_summary.xlsx'):
+def save_future_warranty_costs_all_months(df, months_list, output_filename='warranty_costs_future_summary.xlsx'):
     # Ensure datetime conversion for relevant columns
     df['DISPATCH_MONTH'] = pd.to_datetime(df['DISPATCH_MONTH'], format='%Y-%m')
     df['WARRANTY_MONTH'] = pd.to_datetime(df['WARRANTY_MONTH'], format='%Y-%m')
@@ -13,18 +13,17 @@ def save_costs_all_months(df, months_list, output_filename='warranty_costs_summa
             # Filter dispatch months within last 60 months up to the reference month
             filtered_df = df[(df['DISPATCH_MONTH'] > start_date) & (df['DISPATCH_MONTH'] <= ref_date)]
 
-            # Future warranty costs from reference month onward
-            future_costs = df[df['WARRANTY_MONTH'] >= ref_date].copy()
-            summary = future_costs.groupby('WARRANTY_MONTH')['WARRANTY_COST'].sum().reset_index()
+            # Filter warranty months starting from the reference month onward
+            future_df = filtered_df[filtered_df['WARRANTY_MONTH'] >= ref_date].copy()
 
-            # Write filtered data starting at the top of the sheet
-            filtered_df.to_excel(writer, sheet_name=month, index=False, startrow=0)
+            # Aggregate warranty cost by warranty month
+            summary = future_df.groupby('WARRANTY_MONTH')['WARRANTY_COST'].sum().reset_index()
 
-            # Write future cost summary below the filtered data, separated by a few rows
-            summary.to_excel(writer, sheet_name=month, index=False, startrow=len(filtered_df) + 3)
+            # Save only the summary dataframe to the sheet named as the month
+            summary.to_excel(writer, sheet_name=month, index=False)
 
     print(f'Data saved in {output_filename}')
 
 # Example usage:
 # months = ['2023-01', '2023-02', '2023-03']
-# save_costs_all_months(df, months)
+# save_future_warranty_costs_all_months(df, months)
