@@ -1,5 +1,42 @@
 import pandas as pd
 
+
+import pandas as pd
+
+def calculate_remaining_age_cost(df):
+    # Sort by bike, dispatch month, and age ascending for efficient slicing
+    df = df.sort_values(['BIKE_GROUPED', 'DISPATCH_MONTH', 'AGE'])
+    
+    # Create a dictionary to hold cumulative sums by bike and dispatch month for quick lookup
+    cumulative_costs = {}
+
+    # Group by bike and dispatch month
+    grouped = df.groupby(['BIKE_GROUPED', 'DISPATCH_MONTH'])
+
+    # For each group, calculate cumulative sums of warranty cost from highest age down to lowest
+    for (bike, dispatch_month), group in grouped:
+        group_sorted = group.sort_values('AGE', ascending=False)
+        cum_sum = group_sorted['WARRANTY_COST'].cumsum().iloc[::-1].reset_index(drop=True)
+        
+        # Map cumulative sum back to age
+        age_to_cum_cost = dict(zip(group_sorted['AGE'][::-1].values, cum_sum))
+        
+        cumulative_costs[(bike, dispatch_month)] = age_to_cum_cost
+
+    # Function to get cumulative cost for each row
+    def get_cum_cost(row):
+        bike = row['BIKE_GROUPED']
+        dispatch_month = row['DISPATCH_MONTH']
+        age = row['AGE']
+        return cumulative_costs.get((bike, dispatch_month), {}).get(age, 0)
+
+    # Apply function to dataframe
+    df['REMAINING_AGE_COST'] = df.apply(get_cum_cost, axis=1)
+
+    return df
+
+
+
 def create_model_sheets_with_remaining_costs(
     df, start_dispatch_month, end_dispatch_month, output_filename='model_warranty_costs_remaining.xlsx'
 ):
